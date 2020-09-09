@@ -5,6 +5,22 @@ cd $(dirname $0)/..
 
 ./scripts/prepare
 
+# Remove any special stuff done by the package.yaml automatically before checking Git if it is dirty
+for f in packages/*; do
+    if [[ -f ${f}/package.yaml ]]; then
+        split_crds=$(cat ${f}/package.yaml | yq r - generateCRDChart.enabled)
+		if [[ "${split_crds}" == "true" ]]; then
+			./scripts/clean-crds ${f}
+		fi
+        providesGVR="$(cat ${f}/package.yaml | yq r - providesGVR)"
+		if ! [[ -z ${providesGVR} ]]; then
+			if [[ "$(yq r ${f}/charts/Chart.yaml 'annotations[catalog.cattle.io/provides-gvr]')" == "${providesGVR}" ]]; then
+				yq d -i ${f}/charts/Chart.yaml "annotations[catalog.cattle.io/provides-gvr]" 
+			fi
+		fi
+    fi
+done
+
 source ./scripts/version
 
 if [ -n "$DIRTY" ]; then
@@ -13,4 +29,21 @@ if [ -n "$DIRTY" ]; then
     exit 1
 fi
 
+for f in packages/*; do
+    if [[ -f ${f}/package.yaml ]]; then
+        split_crds=$(cat ${f}/package.yaml | yq r - generateCRDChart.enabled)
+		if [[ "${split_crds}" == "true" ]]; then
+			./scripts/prepare-crds ${fs}
+		fi
+        providesGVR="$(cat ${f}/package.yaml | yq r - providesGVR)"
+		if ! [[ -z ${providesGVR} ]]; then
+			if [[ -z "$(yq r ${f}/charts/Chart.yaml 'annotations[catalog.cattle.io/provides-gvr]')" ]]; then
+				yq w -i ${f}/charts/Chart.yaml "annotations[catalog.cattle.io/provides-gvr]" "${providesGVR}"
+			fi
+		fi
+    fi
+done
+
 ./scripts/generate-charts
+
+./scripts/clean
