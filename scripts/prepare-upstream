@@ -39,7 +39,7 @@ if [[ $type == 'git' ]]; then
 	git fetch origin $commit
 	git checkout $commit
 	cd $pwd
-	cp -r /tmp/tmp-charts/${subdirectory} ${f}/charts-original
+	cp -r /tmp/tmp-charts/${subdirectory}/* ${f}/charts-original
 	rm -rf /tmp/tmp-charts
 else
 	curl -sLf ${url} | tar xvzf - -C ${f}/charts-original --strip ${fields} ${subdirectory} > /dev/null 2>&1
