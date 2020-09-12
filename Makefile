@@ -22,5 +22,8 @@ mirror: bootstrap
 clean:
 	./scripts/clean
 
+interactive-rebase:
+	./scripts/interactive-rebase
+
 .DEFAULT_GOAL := ci
 
