@@ -1,8 +1,8 @@
-# Default values for prometheus-operator.
+# Default values for kube-prometheus-stack.
 # This is a YAML-formatted file.
 # Declare variables to be passed into your templates.
 
-## Provide a name in place of prometheus-operator for `app:` labels
+## Provide a name in place of kube-prometheus-stack for `app:` labels
 ##
 nameOverride: ""
 
@@ -323,7 +323,7 @@ alertmanager:
     #   action: replace
 
   ## Settings affecting alertmanagerSpec
-  ## ref: https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#alertmanagerspec
+  ## ref: https://github.com/prometheus-operator/prometheus-operator/blob/master/Documentation/api.md#alertmanagerspec
   ##
   alertmanagerSpec:
     ## Standard object’s metadata. More info: https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#metadata
@@ -335,7 +335,8 @@ alertmanager:
     ##
     image:
       repository: quay.io/prometheus/alertmanager
-      tag: v0.20.0
+      tag: v0.21.0
+      sha: ""
 
     ## If true then the user will be responsible to provide a secret with alertmanager configuration
     ## So when true the config part will be ignored (including templateFiles) and the one in the secret will be used
@@ -375,7 +376,7 @@ alertmanager:
     retention: 120h
 
     ## Storage is the definition of how storage will be used by the Alertmanager instances.
-    ## ref: https://github.com/coreos/prometheus-operator/blob/master/Documentation/user-guides/storage.md
+    ## ref: https://github.com/prometheus-operator/prometheus-operator/blob/master/Documentation/user-guides/storage.md
     ##
     storage: {}
     # volumeClaimTemplate:
@@ -480,7 +481,7 @@ alertmanager:
     portName: "web"
 
 
-## Using default values from https://github.com/helm/charts/blob/master/stable/grafana/values.yaml
+## Using default values from https://github.com/grafana/helm-charts/blob/main/charts/grafana/values.yaml
 ##
 grafana:
   enabled: true
@@ -649,7 +650,7 @@ kubelet:
     interval: ""
 
     ## Enable scraping the kubelet over https. For requirements to enable this see
-    ## https://github.com/coreos/prometheus-operator/issues/926
+    ## https://github.com/prometheus-operator/prometheus-operator/issues/926
     ##
     https: true
 
@@ -1139,6 +1140,7 @@ prometheusOperator:
     image:
       repository: squareup/ghostunnel
       tag: v1.5.2
+      sha: ""
       pullPolicy: IfNotPresent
     resources: {}
 
@@ -1156,6 +1158,7 @@ prometheusOperator:
       image:
         repository: jettech/kube-webhook-certgen
         tag: v1.2.1
+        sha: ""
         pullPolicy: IfNotPresent
       resources: {}
       ## Provide a priority class name to the webhook patching job
@@ -1247,7 +1250,7 @@ prometheusOperator:
   # logLevel: error
 
   ## If true, the operator will create and maintain a service for scraping kubelets
-  ## ref: https://github.com/coreos/prometheus-operator/blob/master/helm/prometheus-operator/README.md
+  ## ref: https://github.com/prometheus-operator/prometheus-operator/blob/master/helm/prometheus-operator/README.md
   ##
   kubeletService:
     enabled: true
@@ -1259,6 +1262,8 @@ prometheusOperator:
     ## Scrape interval. If not set, the Prometheus default scrape interval is used.
     ##
     interval: ""
+    ## Scrape timeout. If not set, the Prometheus default scrape timeout is used.
+    scrapeTimeout: ""
     selfMonitor: true
 
     ## 	metric relabel configs to apply to samples before ingestion.
@@ -1332,6 +1337,7 @@ prometheusOperator:
   image:
     repository: quay.io/coreos/prometheus-operator
     tag: v0.38.1
+    sha: ""
     pullPolicy: IfNotPresent
 
   ## Configmap-reload image to use for reloading configmaps
@@ -1339,12 +1345,14 @@ prometheusOperator:
   configmapReloadImage:
     repository: docker.io/jimmidyson/configmap-reload
     tag: v0.3.0
+    sha: ""
 
   ## Prometheus-config-reloader image to use for config and rule reloading
   ##
   prometheusConfigReloaderImage:
     repository: quay.io/coreos/prometheus-config-reloader
     tag: v0.38.1
+    sha: ""
 
   ## Set the prometheus config reloader side-car CPU limit
   ##
@@ -1354,11 +1362,16 @@ prometheusOperator:
   ##
   configReloaderMemory: 25Mi
 
+  ## Set a Field Selector to filter watched secrets
+  ##
+  secretFieldSelector: ""
+
   ## Hyperkube image to use when cleaning up
   ##
   hyperkubeImage:
     repository: k8s.gcr.io/hyperkube
     tag: v1.16.12
+    sha: ""
     pullPolicy: IfNotPresent
 
 ## Deploy a Prometheus instance
@@ -1447,6 +1460,30 @@ prometheus:
     minAvailable: 1
     maxUnavailable: ""
 
+# Ingress exposes thanos sidecar outside the clsuter
+  thanosIngress:
+    enabled: false
+    annotations: {}
+    labels: {}
+    servicePort: 10901
+    ## Hosts must be provided if Ingress is enabled.
+    ##
+    hosts: []
+      # - thanos-gateway.domain.com
+
+    ## Paths to use for ingress rules
+    ##
+    paths: []
+    # - /
+
+    ## TLS configuration for Alertmanager Ingress
+    ## Secret must be manually created in the namespace
+    ##
+    tls: []
+    # - secretName: thanos-gateway-tls
+    #   hosts:
+    #   - thanos-gateway.domain.com
+
   ingress:
     enabled: false
     annotations: {}
@@ -1522,7 +1559,7 @@ prometheus:
     scheme: ""
 
     ## tlsConfig: TLS configuration to use when scraping the endpoint. For example if using istio mTLS.
-    ## Of type: https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#tlsconfig
+    ## Of type: https://github.com/prometheus-operator/prometheus-operator/blob/master/Documentation/api.md#tlsconfig
     tlsConfig: {}
 
     bearerTokenFile:
@@ -1545,14 +1582,14 @@ prometheus:
     #   action: replace
 
   ## Settings affecting prometheusSpec
-  ## ref: https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#prometheusspec
+  ## ref: https://github.com/prometheus-operator/prometheus-operator/blob/master/Documentation/api.md#prometheusspec
   ##
   prometheusSpec:
     ## If true, pass --storage.tsdb.max-block-duration=2h to prometheus. This is already done if using Thanos
     ##
     disableCompaction: false
     ## APIServerConfig
-    ## ref: https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#apiserverconfig
+    ## ref: https://github.com/prometheus-operator/prometheus-operator/blob/master/Documentation/api.md#apiserverconfig
     ##
     apiserverConfig: {}
 
@@ -1578,7 +1615,8 @@ prometheus:
     ##
     image:
       repository: quay.io/prometheus/prometheus
-      tag: v2.18.1
+      tag: v2.18.2
+      sha: ""
 
     ## Tolerations for use with node taints
     ## ref: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
@@ -1590,7 +1628,7 @@ prometheus:
     #    effect: "NoSchedule"
 
     ## Alertmanagers to which alerts will be sent
-    ## ref: https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#alertmanagerendpoints
+    ## ref: https://github.com/prometheus-operator/prometheus-operator/blob/master/Documentation/api.md#alertmanagerendpoints
     ##
     ## Default configuration will connect to the alertmanager deployed as part of this release
     ##
@@ -1646,13 +1684,13 @@ prometheus:
     configMaps: []
 
     ## QuerySpec defines the query command line flags when starting Prometheus.
-    ## ref: https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#queryspec
+    ## ref: https://github.com/prometheus-operator/prometheus-operator/blob/master/Documentation/api.md#queryspec
     ##
     query: {}
 
     ## Namespaces to be selected for PrometheusRules discovery.
     ## If nil, select own namespace. Namespaces to be selected for ServiceMonitor discovery.
-    ## See https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#namespaceselector for usage
+    ## See https://github.com/prometheus-operator/prometheus-operator/blob/master/Documentation/api.md#namespaceselector for usage
     ##
     ruleNamespaceSelector: {}
 
@@ -1697,7 +1735,7 @@ prometheus:
     #     prometheus: somelabel
 
     ## Namespaces to be selected for ServiceMonitor discovery.
-    ## See https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#namespaceselector for usage
+    ## See https://github.com/prometheus-operator/prometheus-operator/blob/master/Documentation/api.md#namespaceselector for usage
     ##
     serviceMonitorNamespaceSelector: {}
 
@@ -1717,7 +1755,7 @@ prometheus:
     #     prometheus: somelabel
 
     ## Namespaces to be selected for PodMonitor discovery.
-    ## See https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#namespaceselector for usage
+    ## See https://github.com/prometheus-operator/prometheus-operator/blob/master/Documentation/api.md#namespaceselector for usage
     ##
     podMonitorNamespaceSelector: {}
 
@@ -1788,12 +1826,12 @@ prometheus:
     #         - e2e-az2
 
     ## The remote_read spec configuration for Prometheus.
-    ## ref: https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#remotereadspec
+    ## ref: https://github.com/prometheus-operator/prometheus-operator/blob/master/Documentation/api.md#remotereadspec
     remoteRead: []
     # - url: http://remote1/read
 
     ## The remote_write spec configuration for Prometheus.
-    ## ref: https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#remotewritespec
+    ## ref: https://github.com/prometheus-operator/prometheus-operator/blob/master/Documentation/api.md#remotewritespec
     remoteWrite: []
     # - url: http://remote1/push
 
@@ -1807,7 +1845,7 @@ prometheus:
     #   memory: 400Mi
 
     ## Prometheus StorageSpec for persistent data
-    ## ref: https://github.com/coreos/prometheus-operator/blob/master/Documentation/user-guides/storage.md
+    ## ref: https://github.com/prometheus-operator/prometheus-operator/blob/master/Documentation/user-guides/storage.md
     ##
     storageSpec: {}
     #  volumeClaimTemplate:
@@ -1864,6 +1902,14 @@ prometheus:
     #   - regex: (kubernetes_io_hostname|failure_domain_beta_kubernetes_io_region|beta_kubernetes_io_os|beta_kubernetes_io_arch|beta_kubernetes_io_instance_type|failure_domain_beta_kubernetes_io_zone)
     #     action: labeldrop
 
+    ## If additional scrape configurations are already deployed in a single secret file you can use this section.
+    ## Expected values are the secret name and key
+    ## Cannot be used with additionalScrapeConfigs
+    additionalScrapeConfigsSecret: {}
+      # enabled: false
+      # name:
+      # key:
+
     ## additionalPrometheusSecretsAnnotations allows to add annotations to the kubernetes secret. This can be useful
     ## when deploying via spinnaker to disable versioning on the secret, strategy.spinnaker.io/versioned: 'false'
     additionalPrometheusSecretsAnnotations: {}
@@ -1899,7 +1945,7 @@ prometheus:
 
     ## SecurityContext holds pod-level security attributes and common container settings.
     ## This defaults to non root user with uid 1000 and gid 2000.
-    ## https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md
+    ## https://github.com/prometheus-operator/prometheus-operator/blob/master/Documentation/api.md
     ##
     securityContext:
       runAsGroup: 2000
@@ -1914,7 +1960,7 @@ prometheus:
     ## Thanos configuration allows configuring various aspects of a Prometheus server in a Thanos environment.
     ## This section is experimental, it may change significantly without deprecation notice in any release.
     ## This is experimental and may change significantly without backward compatibility in any release.
-    ## ref: https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#thanosspec
+    ## ref: https://github.com/prometheus-operator/prometheus-operator/blob/master/Documentation/api.md#thanosspec
     ##
     thanos: {}
 
@@ -1925,18 +1971,6 @@ prometheus:
     ## InitContainers allows injecting additional initContainers. This is meant to allow doing some changes
     ## (permissions, dir tree) on mounted volumes before starting prometheus
     initContainers: []
-
-    ## Enable additional scrape configs that are managed externally to this chart. Note that the prometheus
-    ## will fail to provision if the correct secret does not exist.
-    ## This option requires that you are maintaining a secret in the same namespace as Prometheus with
-    ## a name of 'prometheus-operator-prometheus-scrape-confg' and a key of 'additional-scrape-configs.yaml' that
-    ## contains a list of scrape_config's. The name of the secret may vary if you utilize the "fullnameOverride".
-    ## This feature cannot be used in conjunction with the additionalScrapeConfigs attribute (the helm-generated
-    ## secret will overwrite your self-maintained secret).
-    ##
-    ## scrape_config docs: https://prometheus.io/docs/prometheus/latest/configuration/configuration/#scrape_config
-    ## explanation of "confg" typo: https://github.com/helm/charts/issues/13368
-    additionalScrapeConfigsExternal: false
 
     ## PortName to use for Prometheus.
     ##
@@ -2066,6 +2100,6 @@ prometheus:
       # matchNames: []
 
     ## Endpoints of the selected pods to be monitored
-    ## https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#podmetricsendpoint
+    ## https://github.com/prometheus-operator/prometheus-operator/blob/master/Documentation/api.md#podmetricsendpoint
     ##
     # podMetricsEndpoints: []
