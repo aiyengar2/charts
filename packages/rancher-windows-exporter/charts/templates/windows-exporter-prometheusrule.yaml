@@ -1,11 +1,10 @@
+{{- if and .Values.prometheusRule .Values.serviceMonitor .Values.clients }}{{- if and .Values.prometheusRule.enabled .Values.serviceMonitor.enabled .Values.clients.enabled }}
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
-  labels:
-    role: windows-node-recording-rules
-    source: rancher-monitoring
-  name: windows-node-recording-rules
-  namespace: cattle-prometheus
+  name: {{ template "windowsExporter.name" . }}-relabel-rules
+  namespace: {{ template "windowsExporter.namespace" . }}
+  labels: {{ include "windowsExporter.labels" . | nindent 4 }}
 spec:
   groups:
   - name: windows-cpu-recording.rules
@@ -56,3 +55,4 @@ spec:
       expr: wmi_logical_disk_size_bytes
     - record: node_filesystem_free_bytes
       expr: wmi_logical_disk_free_bytes
+{{- end }}{{- end }}

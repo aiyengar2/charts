@@ -1,8 +1,17 @@
 apiVersion: v1
-description: Windows Node Exporter service/endpoint and service monitor.
-engine: gotpl
+version: 0.1.0
+appVersion: 0.0.4
+annotations:
+  catalog.rancher.io/certified: rancher
+  catalog.rancher.io/namespace: cattle-monitoring-system
+  catalog.rancher.io/release-name: rancher-windows-exporter
+  catalog.cattle.io/hidden: "true"
+  catalog.cattle.io/os: windows
+description: Sets up monitoring metrics from Windows nodes via Prometheus wmi-exporter / windows-exporter
+name: rancher-windows-exporter
 maintainers:
 - name: michelia
   email: michelia@rancher.com
-name: exporter-node-windows
-version: 0.0.1
+- name: aiyengar2
+  email: arvind.iyengar@rancher.com
+type: application
