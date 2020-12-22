@@ -1,7 +1,7 @@
 diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/Chart.yaml packages/rancher-monitoring/charts/Chart.yaml
 --- packages/rancher-monitoring/charts-original/Chart.yaml
 +++ packages/rancher-monitoring/charts/Chart.yaml
-@@ -5,31 +5,36 @@
+@@ -5,31 +5,35 @@
      - name: Upstream Project
        url: https://github.com/prometheus-operator/kube-prometheus
    artifacthub.io/operator: "true"
@@ -11,7 +11,6 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/Cha
 +  catalog.cattle.io/ui-component: monitoring
 +  catalog.cattle.io/provides-gvr: monitoring.coreos.com.prometheus/v1
 +  catalog.cattle.io/display-name: "Monitoring"
-+  catalog.cattle.io/os: linux
  apiVersion: v1
  appVersion: 0.38.1
 -description: kube-prometheus-stack collects Kubernetes manifests, Grafana dashboards,
@@ -215,6 +214,30 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/cha
          protocol: TCP
        - name: {{ .Values.podPortName }}
          containerPort: 3000
+@@ -352,17 +352,17 @@
+ {{- with .Values.extraContainers }}
+ {{ tpl . $ | indent 2 }}
+ {{- end }}
+-{{- with .Values.nodeSelector }}
+-nodeSelector:
+-{{ toYaml . | indent 2 }}
++nodeSelector: {{ include "linux-node-selector" . | nindent 2 }}
++{{- if .Values.nodeSelector }}
++{{ toYaml .Values.nodeSelector | indent 2 }}
+ {{- end }}
+ {{- with .Values.affinity }}
+ affinity:
+ {{ toYaml . | indent 2 }}
+ {{- end }}
+-{{- with .Values.tolerations }}
+-tolerations:
+-{{ toYaml . | indent 2 }}
++tolerations: {{ include "linux-node-tolerations" . | nindent 2 }}
++{{- if .Values.tolerations }}
++{{ toYaml .Values.tolerations | indent 2 }}
+ {{- end }}
+ volumes:
+   - name: config
 diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/charts/grafana/templates/podsecuritypolicy.yaml packages/rancher-monitoring/charts/charts/grafana/templates/podsecuritypolicy.yaml
 --- packages/rancher-monitoring/charts-original/charts/grafana/templates/podsecuritypolicy.yaml
 +++ packages/rancher-monitoring/charts/charts/grafana/templates/podsecuritypolicy.yaml
@@ -331,6 +354,20 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/cha
          ports:
          - containerPort: 8080
          livenessProbe:
+@@ -181,11 +182,11 @@
+       affinity:
+ {{ toYaml .Values.affinity | indent 8 }}
+ {{- end }}
++      nodeSelector: {{ include "linux-node-selector" . | nindent 8 }}
+ {{- if .Values.nodeSelector }}
+-      nodeSelector:
+ {{ toYaml .Values.nodeSelector | indent 8 }}
+ {{- end }}
++      tolerations: {{ include "linux-node-tolerations" . | nindent 8 }}
+ {{- if .Values.tolerations }}
+-      tolerations:
+ {{ toYaml .Values.tolerations | indent 8 }}
+ {{- end }}
 diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/charts/kube-state-metrics/values.yaml packages/rancher-monitoring/charts/charts/kube-state-metrics/values.yaml
 --- packages/rancher-monitoring/charts-original/charts/kube-state-metrics/values.yaml
 +++ packages/rancher-monitoring/charts/charts/kube-state-metrics/values.yaml
@@ -363,6 +400,28 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/cha
          imagePullPolicy: {{ .Values.image.pullPolicy }}
          args:
          - /adapter
+@@ -92,13 +92,17 @@
+           name: volume-serving-cert
+           readOnly: true
+         {{- end }}
+-      nodeSelector:
+-        {{- toYaml .Values.nodeSelector | nindent 8 }}
++      nodeSelector: {{ include "linux-node-selector" . | nindent 8 }}
++{{- if .Values.nodeSelector }}
++{{- toYaml .Values.nodeSelector | nindent 8 }}
++{{- end }}
+       affinity:
+         {{- toYaml .Values.affinity | nindent 8 }}
+       priorityClassName: {{ .Values.priorityClassName }}
+-      tolerations:
+-        {{- toYaml .Values.tolerations | nindent 8 }}
++      tolerations: {{ include "linux-node-tolerations" . | nindent 8 }}
++{{- if .Values.tolerations }}
++{{- toYaml .Values.tolerations | nindent 8 }}
++{{- end }}
+       {{- if .Values.image.pullSecrets }}
+       imagePullSecrets:
+         {{- range .Values.image.pullSecrets }}
 diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/charts/prometheus-adapter/values.yaml packages/rancher-monitoring/charts/charts/prometheus-adapter/values.yaml
 --- packages/rancher-monitoring/charts-original/charts/prometheus-adapter/values.yaml
 +++ packages/rancher-monitoring/charts/charts/prometheus-adapter/values.yaml
@@ -398,6 +457,27 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/cha
            imagePullPolicy: {{ .Values.image.pullPolicy }}
            args:
              - --path.procfs=/host/proc
+@@ -113,14 +113,14 @@
+       affinity:
+ {{ toYaml .Values.affinity | indent 8 }}
+ {{- end }}
++      nodeSelector: {{ include "linux-node-selector" . | nindent 8 }}
+ {{- if .Values.nodeSelector }}
+-      nodeSelector:
+-{{ toYaml .Values.nodeSelector | indent 8 }}
++{{- toYaml .Values.Selector | nindent 8 }}
++{{- end }}
++      tolerations: {{ include "linux-node-tolerations" . | nindent 8 }}
++{{- if .Values.tolerations }}
++{{- toYaml .Values.tolerations | nindent 8 }}
+ {{- end }}
+-    {{- with .Values.tolerations }}
+-      tolerations:
+-{{ toYaml . | indent 8 }}
+-    {{- end }}
+       volumes:
+         - name: proc
+           hostPath:
 diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/charts/prometheus-node-exporter/values.yaml packages/rancher-monitoring/charts/charts/prometheus-node-exporter/values.yaml
 --- packages/rancher-monitoring/charts-original/charts/prometheus-node-exporter/values.yaml
 +++ packages/rancher-monitoring/charts/charts/prometheus-node-exporter/values.yaml
@@ -479,7 +559,7 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/crd
 diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/requirements.yaml packages/rancher-monitoring/charts/requirements.yaml
 --- packages/rancher-monitoring/charts-original/requirements.yaml
 +++ packages/rancher-monitoring/charts/requirements.yaml
-@@ -1,16 +1,96 @@
+@@ -1,16 +1,104 @@
  dependencies:
 -
    - name: kube-state-metrics
@@ -488,13 +568,13 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/req
 +    version: 2.8.14
 +    repository: https://charts.helm.sh/stable/
      condition: kubeStateMetrics.enabled
--
+ 
    - name: prometheus-node-exporter
 -    version: "1.11.*"
 +    version: 1.11.2
      repository: https://prometheus-community.github.io/helm-charts
      condition: nodeExporter.enabled
--
+ 
    - name: grafana
 -    version: "5.6.*"
 +    version: 5.6.4
@@ -506,89 +586,96 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/req
 +    repository: https://prometheus-community.github.io/helm-charts
 +    condition: prometheus-adapter.enabled
 +
++  - name: rancher-windows-exporter
++    alias: rkeWindows
++    version: 0.1.0
++    repository: file://../../rancher-windows-exporter/charts
++    condition: rkeWindows.enabled
++
 +  - name: rancher-pushprox
 +    alias: rkeControllerManager
-+    version: 0.1.2
++    version: 0.1.3
 +    repository: file://../../rancher-pushprox/charts
 +    condition: rkeControllerManager.enabled
 +
 +  - name: rancher-pushprox
 +    alias: rkeScheduler
-+    version: 0.1.2
++    version: 0.1.3
 +    repository: file://../../rancher-pushprox/charts
 +    condition: rkeScheduler.enabled
 +
 +  - name: rancher-pushprox
 +    alias: rkeProxy
-+    version: 0.1.2
++    version: 0.1.3
 +    repository: file://../../rancher-pushprox/charts
 +    condition: rkeProxy.enabled
 +
 +  - name: rancher-pushprox
 +    alias: rkeEtcd
-+    version: 0.1.2
++    version: 0.1.3
 +    repository: file://../../rancher-pushprox/charts
 +    condition: rkeEtcd.enabled
 +
 +  - name: rancher-pushprox
 +    alias: k3sServer
-+    version: 0.1.2
++    version: 0.1.3
 +    repository: file://../../rancher-pushprox/charts
 +    condition: k3sServer.enabled
 +
 +  - name: rancher-pushprox
 +    alias: kubeAdmControllerManager
-+    version: 0.1.2
++    version: 0.1.3
 +    repository: file://../../rancher-pushprox/charts
 +    condition: kubeAdmControllerManager.enabled
 +
 +  - name: rancher-pushprox
 +    alias: kubeAdmScheduler
-+    version: 0.1.2
++    version: 0.1.3
 +    repository: file://../../rancher-pushprox/charts
 +    condition: kubeAdmScheduler.enabled
 +
 +  - name: rancher-pushprox
 +    alias: kubeAdmProxy
-+    version: 0.1.2
++    version: 0.1.3
 +    repository: file://../../rancher-pushprox/charts
 +    condition: kubeAdmProxy.enabled
 +
 +  - name: rancher-pushprox
 +    alias: kubeAdmEtcd
-+    version: 0.1.2
++    version: 0.1.3
 +    repository: file://../../rancher-pushprox/charts
 +    condition: kubeAdmEtcd.enabled
 +
 +  - name: rancher-pushprox
 +    alias: rke2ControllerManager
-+    version: 0.1.2
++    version: 0.1.3
 +    repository: file://../../rancher-pushprox/charts
 +    condition: rke2ControllerManager.enabled
 +
 +  - name: rancher-pushprox
 +    alias: rke2Scheduler
-+    version: 0.1.2
++    version: 0.1.3
 +    repository: file://../../rancher-pushprox/charts
 +    condition: rke2Scheduler.enabled
 +
 +  - name: rancher-pushprox
 +    alias: rke2Proxy
-+    version: 0.1.2
++    version: 0.1.3
 +    repository: file://../../rancher-pushprox/charts
 +    condition: rke2Proxy.enabled
 +
 +  - name: rancher-pushprox
 +    alias: rke2Etcd
-+    version: 0.1.2
++    version: 0.1.3
 +    repository: file://../../rancher-pushprox/charts
 +    condition: rke2Etcd.enabled
 \ No newline at end of file
 diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/templates/_helpers.tpl packages/rancher-monitoring/charts/templates/_helpers.tpl
 --- packages/rancher-monitoring/charts-original/templates/_helpers.tpl
 +++ packages/rancher-monitoring/charts/templates/_helpers.tpl
-@@ -1,3 +1,61 @@
+@@ -1,3 +1,84 @@
 +# Rancher
++
 +{{- define "system_default_registry" -}}
 +{{- if .Values.global.cattle.systemDefaultRegistry -}}
 +{{- printf "%s/" .Values.global.cattle.systemDefaultRegistry -}}
@@ -644,6 +731,28 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/tem
 +{{- end -}}
 +{{- end }}
 +
++# Windows Support
++
++{{/*
++Windows cluster will add default taint for linux nodes, 
++add below linux tolerations to workloads could be scheduled to those linux nodes
++*/}}
++
++{{- define "linux-node-tolerations" -}}
++- key: "cattle.io/os"
++  value: "linux"
++  effect: "NoSchedule"
++  operator: "Equal"
++{{- end -}}
++
++{{- define "linux-node-selector" -}}
++{{- if semverCompare "<1.14-0" .Capabilities.KubeVersion.GitVersion -}}
++beta.kubernetes.io/os: linux
++{{- else -}}
++kubernetes.io/os: linux
++{{- end -}}
++{{- end -}}
++
 +# Prometheus Operator
 +
  {{/* vim: set filetype=mustache: */}}
@@ -661,10 +770,30 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/tem
    version: {{ .Values.alertmanager.alertmanagerSpec.image.tag }}
    {{- if .Values.alertmanager.alertmanagerSpec.image.sha }}
    sha: {{ .Values.alertmanager.alertmanagerSpec.image.sha }}
+@@ -25,8 +25,8 @@
+ {{- else }}
+   externalUrl: http://{{ template "kube-prometheus-stack.fullname" . }}-alertmanager.{{ template "kube-prometheus-stack.namespace" . }}:{{ .Values.alertmanager.service.port }}
+ {{- end }}
++  nodeSelector: {{ include "linux-node-selector" . | nindent 4 }}
+ {{- if .Values.alertmanager.alertmanagerSpec.nodeSelector }}
+-  nodeSelector:
+ {{ toYaml .Values.alertmanager.alertmanagerSpec.nodeSelector | indent 4 }}
+ {{- end }}
+   paused: {{ .Values.alertmanager.alertmanagerSpec.paused }}
+@@ -88,8 +88,8 @@
+               alertmanager: {{ template "kube-prometheus-stack.fullname" . }}-alertmanager
+ {{- end }}
+ {{- end }}
++  tolerations: {{ include "linux-node-tolerations" . | nindent 4 }}
+ {{- if .Values.alertmanager.alertmanagerSpec.tolerations }}
+-  tolerations:
+ {{ toYaml .Values.alertmanager.alertmanagerSpec.tolerations | indent 4 }}
+ {{- end }}
+ {{- if .Values.global.imagePullSecrets }}
 diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/templates/alertmanager/cleanupSecret.yaml packages/rancher-monitoring/charts/templates/alertmanager/cleanupSecret.yaml
 --- packages/rancher-monitoring/charts-original/templates/alertmanager/cleanupSecret.yaml
 +++ packages/rancher-monitoring/charts/templates/alertmanager/cleanupSecret.yaml
-@@ -0,0 +1,86 @@
+@@ -0,0 +1,88 @@
 +{{- if and (.Values.alertmanager.enabled) (not .Values.alertmanager.alertmanagerSpec.useExistingSecret) (.Values.alertmanager.secret.cleanupOnUninstall) }}
 +apiVersion: batch/v1
 +kind: Job
@@ -702,6 +831,8 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/tem
 +              kubectl delete secret -n {{ template "kube-prometheus-stack.namespace" . }} alertmanager-{{ template "kube-prometheus-stack.fullname" . }}-alertmanager
 +            fi;
 +      restartPolicy: OnFailure
++      nodeSelector: {{ include "linux-node-selector" . | nindent 8 }} 
++      tolerations: {{ include "linux-node-tolerations" . | nindent 8 }}
 +---
 +apiVersion: rbac.authorization.k8s.io/v1
 +kind: ClusterRole
@@ -777,7 +908,7 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/tem
  {{ toYaml .Values.alertmanager.secret.annotations | indent 4 }}
  {{- end }}
    labels:
-@@ -20,4 +28,137 @@
+@@ -20,4 +28,139 @@
  {{- range $key, $val := .Values.alertmanager.templateFiles }}
    {{ $key }}: {{ $val | b64enc | quote }}
  {{- end }}
@@ -826,6 +957,8 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/tem
 +            alertmanager-{{ template "kube-prometheus-stack.fullname" . }}-alertmanager
 +            helm.sh/hook- helm.sh/hook-delete-policy- helm.sh/hook-weight-;
 +      restartPolicy: OnFailure
++      nodeSelector: {{ include "linux-node-selector" . | nindent 8 }} 
++      tolerations: {{ include "linux-node-tolerations" . | nindent 8 }}
 +---
 +apiVersion: rbac.authorization.k8s.io/v1
 +kind: ClusterRole
@@ -1956,16 +2089,30 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/tem
    version: {{ .Values.prometheus.prometheusSpec.image.tag }}
    {{- if .Values.prometheus.prometheusSpec.image.sha }}
    sha: {{ .Values.prometheus.prometheusSpec.image.sha }}
-@@ -59,6 +59,9 @@
+@@ -59,8 +59,11 @@
  {{- else }}
    externalUrl: http://{{ template "kube-prometheus-stack.fullname" . }}-prometheus.{{ template "kube-prometheus-stack.namespace" . }}:{{ .Values.prometheus.service.port }}
  {{- end }}
+-{{- if .Values.prometheus.prometheusSpec.nodeSelector }}
+-  nodeSelector:
 +{{- if .Values.prometheus.prometheusSpec.ignoreNamespaceSelectors }}
 +  ignoreNamespaceSelectors: {{ .Values.prometheus.prometheusSpec.ignoreNamespaceSelectors }}
 +{{- end }}
- {{- if .Values.prometheus.prometheusSpec.nodeSelector }}
-   nodeSelector:
++  nodeSelector: {{ include "linux-node-selector" . | nindent 4 }}
++{{- if .Values.prometheus.prometheusSpec.nodeSelector }} 
  {{ toYaml .Values.prometheus.prometheusSpec.nodeSelector | indent 4 }}
+ {{- end }}
+   paused: {{ .Values.prometheus.prometheusSpec.paused }}
+@@ -196,8 +199,8 @@
+               prometheus: {{ template "kube-prometheus-stack.fullname" . }}-prometheus
+ {{- end }}
+ {{- end }}
++  tolerations: {{ include "linux-node-tolerations" . | nindent 4 }}
+ {{- if .Values.prometheus.prometheusSpec.tolerations }}
+-  tolerations:
+ {{ toYaml .Values.prometheus.prometheusSpec.tolerations | indent 4 }}
+ {{- end }}
+ {{- if .Values.global.imagePullSecrets }}
 @@ -226,7 +229,7 @@
  {{- end }}
  {{- if .Values.prometheus.prometheusSpec.containers }}
@@ -2255,6 +2402,31 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/tem
            {{- end }}
            imagePullPolicy: {{ .Values.prometheusOperator.admissionWebhooks.patch.image.pullPolicy }}
            args:
+@@ -46,18 +46,18 @@
+ {{ toYaml .Values.prometheusOperator.admissionWebhooks.patch.resources | indent 12 }}
+       restartPolicy: OnFailure
+       serviceAccountName: {{ template "kube-prometheus-stack.fullname" . }}-admission
+-      {{- with .Values.prometheusOperator.admissionWebhooks.patch.nodeSelector }}
+-      nodeSelector:
++      nodeSelector: {{ include "linux-node-selector" . | nindent 8 }} 
++{{- with .Values.prometheusOperator.admissionWebhooks.patch.nodeSelector }}
+ {{ toYaml . | indent 8 }}
+-      {{- end }}
++{{- end }}
+       {{- with .Values.prometheusOperator.admissionWebhooks.patch.affinity }}
+       affinity:
+ {{ toYaml . | indent 8 }}
+       {{- end }}
+-      {{- with .Values.prometheusOperator.admissionWebhooks.patch.tolerations }}
+-      tolerations:
++      tolerations: {{ include "linux-node-tolerations" . | nindent 8 }} 
++{{- with .Values.prometheusOperator.admissionWebhooks.patch.tolerations }}
+ {{ toYaml . | indent 8 }}
+-      {{- end }}
++{{- end }}
+       securityContext:
+         runAsGroup: 2000
+         runAsNonRoot: true
 diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/templates/prometheus-operator/admission-webhooks/job-patch/job-patchWebhook.yaml packages/rancher-monitoring/charts/templates/prometheus-operator/admission-webhooks/job-patch/job-patchWebhook.yaml
 --- packages/rancher-monitoring/charts-original/templates/prometheus-operator/admission-webhooks/job-patch/job-patchWebhook.yaml
 +++ packages/rancher-monitoring/charts/templates/prometheus-operator/admission-webhooks/job-patch/job-patchWebhook.yaml
@@ -2270,6 +2442,31 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/tem
            {{- end }}
            imagePullPolicy: {{ .Values.prometheusOperator.admissionWebhooks.patch.image.pullPolicy }}
            args:
+@@ -47,18 +47,18 @@
+ {{ toYaml .Values.prometheusOperator.admissionWebhooks.patch.resources | indent 12 }}
+       restartPolicy: OnFailure
+       serviceAccountName: {{ template "kube-prometheus-stack.fullname" . }}-admission
+-      {{- with .Values.prometheusOperator.admissionWebhooks.patch.nodeSelector }}
+-      nodeSelector:
++      nodeSelector: {{ include "linux-node-selector" . | nindent 8 }} 
++{{- with .Values.prometheusOperator.admissionWebhooks.patch.nodeSelector }}
+ {{ toYaml . | indent 8 }}
+-      {{- end }}
++{{- end }}
+       {{- with .Values.prometheusOperator.admissionWebhooks.patch.affinity }}
+       affinity:
+ {{ toYaml . | indent 8 }}
+       {{- end }}
+-      {{- with .Values.prometheusOperator.admissionWebhooks.patch.tolerations }}
+-      tolerations:
++      tolerations: {{ include "linux-node-tolerations" . | nindent 8 }} 
++{{- with .Values.prometheusOperator.admissionWebhooks.patch.tolerations }}
+ {{ toYaml . | indent 8 }}
+-      {{- end }}
++{{- end }}
+       securityContext:
+         runAsGroup: 2000
+         runAsNonRoot: true
 diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/templates/prometheus-operator/cleanup-crds.yaml packages/rancher-monitoring/charts/templates/prometheus-operator/cleanup-crds.yaml
 --- packages/rancher-monitoring/charts-original/templates/prometheus-operator/cleanup-crds.yaml
 +++ packages/rancher-monitoring/charts/templates/prometheus-operator/cleanup-crds.yaml
@@ -2391,10 +2588,33 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/tem
            {{- end }}
            imagePullPolicy: {{ .Values.prometheusOperator.tlsProxy.image.pullPolicy }}
            args:
+@@ -130,16 +130,16 @@
+       hostNetwork: true
+       dnsPolicy: ClusterFirstWithHostNet
+ {{- end }}
+-    {{- with .Values.prometheusOperator.nodeSelector }}
+-      nodeSelector:
++      nodeSelector: {{ include "linux-node-selector" . | nindent 8 }} 
++{{- with .Values.prometheusOperator.nodeSelector }}
+ {{ toYaml . | indent 8 }}
+-    {{- end }}
++{{- end }}
+     {{- with .Values.prometheusOperator.affinity }}
+       affinity:
+ {{ toYaml . | indent 8 }}
+     {{- end }}
+-    {{- with .Values.prometheusOperator.tolerations }}
+-      tolerations:
++      tolerations: {{ include "linux-node-tolerations" . | nindent 8 }} 
++{{- with .Values.prometheusOperator.tolerations }}
+ {{ toYaml . | indent 8 }}
+-    {{- end }}
++{{- end }}
+ {{- end }}
 diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/values.yaml packages/rancher-monitoring/charts/values.yaml
 --- packages/rancher-monitoring/charts-original/values.yaml
 +++ packages/rancher-monitoring/charts/values.yaml
-@@ -2,13 +2,247 @@
+@@ -2,13 +2,250 @@
  # This is a YAML-formatted file.
  # Declare variables to be passed into your templates.
  
@@ -2482,6 +2702,9 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/val
 +      operator: "Exists"
 +    - effect: "NoSchedule"
 +      operator: "Exists"
++
++rkeWindows:
++  enabled: false
 +
 +## k3s PushProx Monitoring
 +## ref: https://github.com/rancher/charts/tree/master/packages/rancher-pushprox
@@ -2644,7 +2867,7 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/val
  
  ## Provide a k8s version to auto dashboard import script example: kubeTargetVersionOverride: 1.16.6
  ##
-@@ -76,8 +310,23 @@
+@@ -76,8 +313,23 @@
  
  ##
  global:
@@ -2668,7 +2891,7 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/val
      pspEnabled: true
      pspAnnotations: {}
        ## Specify pod annotations
-@@ -130,6 +379,22 @@
+@@ -130,6 +382,22 @@
    ## ref: https://prometheus.io/docs/alerting/configuration/#configuration-file
    ##      https://prometheus.io/webtools/alerting/routing-tree-editor/
    ##
@@ -2691,7 +2914,7 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/val
    config:
      global:
        resolve_timeout: 5m
-@@ -145,6 +410,8 @@
+@@ -145,6 +413,8 @@
          receiver: 'null'
      receivers:
      - name: 'null'
@@ -2700,7 +2923,7 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/val
  
    ## Pass the Alertmanager configuration directives through Helm's templating
    ## engine. If the Alertmanager configuration contains Alertmanager templates,
-@@ -160,25 +427,76 @@
+@@ -160,25 +430,76 @@
    ## ref: https://prometheus.io/docs/alerting/notifications/
    ##      https://prometheus.io/docs/alerting/notification_examples/
    ##
@@ -2796,7 +3019,7 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/val
  
    ingress:
      enabled: false
-@@ -208,6 +526,25 @@
+@@ -208,6 +529,25 @@
    ## Configuration for Alertmanager secret
    ##
    secret:
@@ -2822,7 +3045,7 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/val
      annotations: {}
  
    ## Configuration for creating an Ingress that will map to each Alertmanager replica service
-@@ -334,7 +671,7 @@
+@@ -334,7 +674,7 @@
      ## Image of Alertmanager
      ##
      image:
@@ -2831,7 +3054,7 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/val
        tag: v0.21.0
        sha: ""
  
-@@ -410,9 +747,13 @@
+@@ -410,9 +750,13 @@
      ## Define resources requests and limits for single Pods.
      ## ref: https://kubernetes.io/docs/user-guide/compute-resources/
      ##
@@ -2848,7 +3071,7 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/val
  
      ## Pod anti-affinity can prevent the scheduler from placing Prometheus replicas on the same node.
      ## The default value "soft" means that the scheduler should *prefer* to not schedule two replica pods onto the same node but no guarantee is provided.
-@@ -487,6 +828,27 @@
+@@ -487,6 +831,27 @@
    enabled: true
    namespaceOverride: ""
  
@@ -2876,7 +3099,7 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/val
    ## Deploy default dashboards.
    ##
    defaultDashboardsEnabled: true
-@@ -530,6 +892,7 @@
+@@ -530,6 +895,7 @@
      dashboards:
        enabled: true
        label: grafana_dashboard
@@ -2884,7 +3107,7 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/val
  
        ## Annotations for Grafana dashboard configmaps
        ##
-@@ -574,7 +937,60 @@
+@@ -574,7 +940,60 @@
    ## Passed to grafana subchart and used by servicemonitor below
    ##
    service:
@@ -2946,7 +3169,7 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/val
  
    ## If true, create a serviceMonitor for grafana
    ##
-@@ -600,6 +1016,14 @@
+@@ -600,6 +1019,14 @@
      #   targetLabel: nodename
      #   replacement: $1
      #   action: replace
@@ -2961,7 +3184,7 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/val
  
  ## Component scraping the kube api server
  ##
-@@ -756,7 +1180,7 @@
+@@ -756,7 +1183,7 @@
  ## Component scraping the kube controller manager
  ##
  kubeControllerManager:
@@ -2970,7 +3193,7 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/val
  
    ## If your kube controller manager is not deployed as a pod, specify IPs it can be found on
    ##
-@@ -889,7 +1313,7 @@
+@@ -889,7 +1316,7 @@
  ## Component scraping etcd
  ##
  kubeEtcd:
@@ -2979,7 +3202,7 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/val
  
    ## If your etcd is not deployed as a pod, specify IPs it can be found on
    ##
-@@ -949,7 +1373,7 @@
+@@ -949,7 +1376,7 @@
  ## Component scraping kube scheduler
  ##
  kubeScheduler:
@@ -2988,7 +3211,7 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/val
  
    ## If your kube scheduler is not deployed as a pod, specify IPs it can be found on
    ##
-@@ -1002,7 +1426,7 @@
+@@ -1002,7 +1429,7 @@
  ## Component scraping kube proxy
  ##
  kubeProxy:
@@ -2997,7 +3220,7 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/val
  
    ## If your kube proxy is not deployed as a pod, specify IPs it can be found on
    ##
-@@ -1076,6 +1500,13 @@
+@@ -1076,6 +1503,13 @@
      create: true
    podSecurityPolicy:
      enabled: true
@@ -3011,7 +3234,7 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/val
  
  ## Deploy node exporter as a daemonset to all nodes
  ##
-@@ -1125,6 +1556,16 @@
+@@ -1125,6 +1559,16 @@
    extraArgs:
      - --collector.filesystem.ignored-mount-points=^/(dev|proc|sys|var/lib/docker/.+)($|/)
      - --collector.filesystem.ignored-fs-types=^(autofs|binfmt_misc|cgroup|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|mqueue|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|sysfs|tracefs)$
@@ -3028,7 +3251,7 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/val
  
  ## Manages Prometheus and Alertmanager components
  ##
-@@ -1138,7 +1579,7 @@
+@@ -1138,7 +1582,7 @@
    tlsProxy:
      enabled: true
      image:
@@ -3037,7 +3260,7 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/val
        tag: v1.5.2
        sha: ""
        pullPolicy: IfNotPresent
-@@ -1156,7 +1597,7 @@
+@@ -1156,7 +1600,7 @@
      patch:
        enabled: true
        image:
@@ -3046,7 +3269,7 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/val
          tag: v1.2.1
          sha: ""
          pullPolicy: IfNotPresent
-@@ -1285,13 +1726,13 @@
+@@ -1285,13 +1729,13 @@
  
    ## Resource limits & requests
    ##
@@ -3067,7 +3290,7 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/val
  
    # Required for use in managed kubernetes clusters (such as AWS EKS) with custom CNI (such as calico),
    # because control-plane managed by AWS cannot communicate with pods' IP CIDR and admission webhooks are not working
-@@ -1335,7 +1776,7 @@
+@@ -1335,7 +1779,7 @@
    ## Prometheus-operator image
    ##
    image:
@@ -3076,7 +3299,7 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/val
      tag: v0.38.1
      sha: ""
      pullPolicy: IfNotPresent
-@@ -1343,14 +1784,14 @@
+@@ -1343,14 +1787,14 @@
    ## Configmap-reload image to use for reloading configmaps
    ##
    configmapReloadImage:
@@ -3093,7 +3316,7 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/val
      tag: v0.38.1
      sha: ""
  
-@@ -1366,14 +1807,6 @@
+@@ -1366,14 +1810,6 @@
    ##
    secretFieldSelector: ""
  
@@ -3108,7 +3331,7 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/val
  ## Deploy a Prometheus instance
  ##
  prometheus:
-@@ -1403,7 +1836,7 @@
+@@ -1403,7 +1839,7 @@
      port: 9090
  
      ## To be used with a proxy extraContainer port
@@ -3117,7 +3340,7 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/val
  
      ## List of IP addresses at which the Prometheus server service is available
      ## Ref: https://kubernetes.io/docs/user-guide/services/#external-ips
-@@ -1614,7 +2047,7 @@
+@@ -1614,7 +2050,7 @@
      ## Image of Prometheus.
      ##
      image:
@@ -3126,7 +3349,7 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/val
        tag: v2.18.2
        sha: ""
  
-@@ -1666,6 +2099,11 @@
+@@ -1666,6 +2102,11 @@
      ##
      externalUrl: ""
  
@@ -3138,7 +3361,7 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/val
      ## Define which Nodes the Pods are scheduled on.
      ## ref: https://kubernetes.io/docs/user-guide/node-selection/
      ##
-@@ -1698,7 +2136,7 @@
+@@ -1698,7 +2139,7 @@
      ## prometheus resource to be created with selectors based on values in the helm deployment,
      ## which will also match the PrometheusRule resources created
      ##
@@ -3147,7 +3370,7 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/val
  
      ## PrometheusRules to be selected for target discovery.
      ## If {}, select all ServiceMonitors
-@@ -1723,7 +2161,7 @@
+@@ -1723,7 +2164,7 @@
      ## prometheus resource to be created with selectors based on values in the helm deployment,
      ## which will also match the servicemonitors created
      ##
@@ -3156,7 +3379,7 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/val
  
      ## ServiceMonitors to be selected for target discovery.
      ## If {}, select all ServiceMonitors
-@@ -1743,7 +2181,7 @@
+@@ -1743,7 +2184,7 @@
      ## prometheus resource to be created with selectors based on values in the helm deployment,
      ## which will also match the podmonitors created
      ##
@@ -3165,7 +3388,7 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/val
  
      ## PodMonitors to be selected for target discovery.
      ## If {}, select all PodMonitors
-@@ -1840,9 +2278,13 @@
+@@ -1840,9 +2281,13 @@
  
      ## Resource limits & requests
      ##
@@ -3182,7 +3405,7 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/val
  
      ## Prometheus StorageSpec for persistent data
      ## ref: https://github.com/prometheus-operator/prometheus-operator/blob/master/Documentation/user-guides/storage.md
-@@ -1857,11 +2299,6 @@
+@@ -1857,11 +2302,6 @@
      #          storage: 50Gi
      #    selector: {}
  
@@ -3194,7 +3417,7 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/val
      ## AdditionalScrapeConfigs allows specifying additional Prometheus scrape configurations. Scrape configurations
      ## are appended to the configurations generated by the Prometheus Operator. Job configurations must have the form
      ## as specified in the official Prometheus documentation:
-@@ -1964,9 +2401,46 @@
+@@ -1964,9 +2404,46 @@
      ##
      thanos: {}
  
@@ -3242,7 +3465,7 @@ diff -x '*.tgz' -x '*.lock' -uNr packages/rancher-monitoring/charts-original/val
  
      ## InitContainers allows injecting additional initContainers. This is meant to allow doing some changes
      ## (permissions, dir tree) on mounted volumes before starting prometheus
-@@ -1974,7 +2448,7 @@
+@@ -1974,7 +2451,7 @@
  
      ## PortName to use for Prometheus.
      ##
