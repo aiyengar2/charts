@@ -1,0 +1,46 @@
+{{- if .Values.clients }}{{ if .Values.enabled }}
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ template "windowsDeployer.name" . }}
+  namespace: {{ template "windowsDeployer.namespace" . }}
+  labels: {{ include "windowsDeployer.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels: {{ include "windowsDeployer.labels" . | nindent 6 }}
+  template:
+    metadata:
+      labels: {{ include "windowsDeployer.labels" . | nindent 8 }}
+    spec:
+      nodeSelector: {{ include "windowsDeployer.nodeSelector" . | nindent 8 }}
+      tolerations: {{ include "windowsDeployer.tolerations" . | nindent 8 }}
+      serviceAccountName: {{ template "windowsDeployer.name" . }}
+      containers:
+      - name: run-windows-exe
+        image: {{ template "system_default_registry" . }}{{ .Values.image.repository }}:{{ .Values.image.tag }}
+        command: ["pwsh", "-f", "c:/scripts/run-executable.ps1"]
+        securityContext:
+          windowsOptions:
+              runAsUserName: "ContainerAdministrator"
+{{- if .Values.resources }}
+        resources: {{ toYaml .Values.resources | nindent 10 }}
+{{- end }}
+        volumeMounts:
+        - name: wins-pipe
+          mountPath: \\.\pipe\rancher_wins
+        - name: binary-host-path
+          mountPath: c:/host/etc/{{ required "Need to have a name for the executable to run" .Values.exe.name }}
+        - name: exporter-scripts
+          mountPath: c:/scripts/    
+      volumes:
+      - name: wins-pipe
+        hostPath:
+          path: \\.\pipe\rancher_wins
+      - name: binary-host-path
+        hostPath:
+          path: c:/etc/{{ .Values.exe.name }}
+          type: DirectoryOrCreate
+      - name: exporter-scripts
+        configMap:
+          name: {{ template "windowsDeployer.name" . }}-scripts
+{{- end }}{{- end }}

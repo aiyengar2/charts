@@ -1,0 +1,77 @@
+{{- if .Values.clients }}{{ if .Values.enabled }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ template "windowsDeployer.name" . }}
+  namespace: {{ template "windowsDeployer.namespace" . }}
+  labels: {{ include "windowsDeployer.labels" . | nindent 4 }}
+rules:
+- apiGroups: ['authentication.k8s.io']
+  resources: ['tokenreviews']
+  verbs: ['create']
+- apiGroups: ['authorization.k8s.io']
+  resources: ['subjectaccessreviews']
+  verbs: ['create']
+- apiGroups: ['policy']
+  resources: ['podsecuritypolicies']
+  verbs:     ['use']
+  resourceNames: ['{{ template "windowsDeployer.name" . }}']
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ template "windowsDeployer.name" . }}
+  namespace: {{ template "windowsDeployer.namespace" . }}
+  labels: {{ include "windowsDeployer.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ template "windowsDeployer.name" . }}
+subjects:
+- kind: ServiceAccount
+  name: {{ template "windowsDeployer.name" . }}
+  namespace: {{ .Release.Namespace }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ template "windowsDeployer.name" . }}
+  namespace: {{ template "windowsDeployer.namespace" . }}
+  labels: {{ include "windowsDeployer.labels" . | nindent 4 }}
+{{- if .Values.imagePullSecrets }}
+imagePullSecrets: {{ toYaml .Values.imagePullSecrets | nindent 2 }}
+{{- end }}
+---
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: {{ template "windowsDeployer.name" . }}
+  namespace: {{ template "windowsDeployer.namespace" . }}
+  labels: {{ include "windowsDeployer.labels" . | nindent 4 }}
+spec:
+  privileged: false
+  hostNetwork: false
+  hostIPC: false
+  hostPID: false
+  runAsUser:
+    rule: 'RunAsAny'
+  seLinux:
+    rule: 'RunAsAny'
+  supplementalGroups:
+    rule: 'MustRunAs'
+    ranges:
+      - min: 0
+        max: 65535
+  fsGroup:
+    rule: 'MustRunAs'
+    ranges:
+      - min: 0
+        max: 65535
+  readOnlyRootFilesystem: false
+  volumes:
+    - 'secret'
+    - 'hostPath'
+  allowedHostPaths:
+  - pathPrefix: \\.\pipe\rancher_wins
+  - pathPrefix: c:/etc/{{ required "Need to have a name for the executable to run" .Values.exe.name }}
+{{- end }}{{- end }}

@@ -1,0 +1,34 @@
+# Default values for rancher-windows-deployer.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# Configuration
+
+global:
+  cattle:
+    systemDefaultRegistry: ""
+
+image:
+  repository: mcr.microsoft.com/windows/servercore
+  tag: ltsc2019
+
+# Options for wins to run
+wins:
+  tag: v0.0.4
+
+# Options for providing the executable to run
+exe:
+  name: ""
+  download_link: ""
+  args: ""
+  exposes: ""
+
+# Resource limits
+resources: {}
+  
+# Options to select nodes to target for running the executable
+nodeSelector: {} # Note: {<beta.>kubernetes.io/os: windows} is default and cannot be overridden
+tolerations: []  # Note: if not specified, the default option is to use [{operator: Exists}]
+
+# Image Pull Secrets for the service account used by the Pods running the executable
+imagePullSecrets: {}

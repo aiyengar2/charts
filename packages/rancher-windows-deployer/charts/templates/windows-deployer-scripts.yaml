@@ -1,0 +1,50 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "windowsDeployer.name" . }}-scripts
+  namespace: {{ template "windowsDeployer.namespace" . }}
+  labels: {{ include "windowsDeployer.labels" . | nindent 4 }}
+data:
+  run-executable.ps1: |-
+    $ErrorActionPreference = 'Stop'
+    $ProgressPreference = 'SilentlyContinue'
+
+    function Download-Binary
+    {
+        param (
+            [parameter(Mandatory = $true, ValueFromPipeline = $true)] [string]$Url
+            [parameter(Mandatory = $true, ValueFromPipeline = $true)] [string]$Dst
+        )
+
+        Write-Host ('Downloading binary from {0} ...' -f $Url);
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        Invoke-WebRequest -UseBasicParsing -OutFile $Dst -Uri $URL
+        Write-Host 'Downloading binary complete.'
+    }
+
+    function Create-Directory
+    {
+        param (
+            [parameter(Mandatory = $false, ValueFromPipeline = $true)] [string]$Path
+        )
+
+        if (Test-Path -Path $Path) {
+            if (-not (Test-Path -Path $Path -PathType Container)) {
+                # clean the same path file
+                Remove-Item -Recurse -Force -Path $Path -ErrorAction Ignore | Out-Null
+            }
+
+            return
+        }
+
+        New-Item -Force -ItemType Directory -Path $Path | Out-Null
+    }
+
+    Download-Binary -Url "https://github.com/rancher/wins/releases/download/{{ .Values.wins.tag }}/wins.exe" -Dst "c:\wins.exe"
+
+    Create-Directory -Path "c:\host\etc\{{ .Values.exe.name }}"
+    Download-Binary -Url {{ .Values.exe.url | quote }} -Dst "c:\host\etc\{{ .Values.exe.name }}\{{ .Values.exe.name }}.exe"
+
+    wins.exe cli prc run --path "c:\etc\{{ .Values.exe.name }}\{{ .Values.exe.name }}.exe" --exposes {{ .Values.exe.exposes | quote }} --args {{ .Values.exe.agrs | quote }}
+
+
