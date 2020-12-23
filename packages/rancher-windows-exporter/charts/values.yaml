@@ -26,7 +26,7 @@ clients:
     repository: rancher/wmi_exporter-package
     tag: v0.0.4
 
-  # Specify endpoints if you don't want metrics to be collected from all nodes
+  # Specify the IP addresses of nodes that you want to collect metrics from
   endpoints: []
 
   # Get more details on https://github.com/prometheus-community/windows_exporter

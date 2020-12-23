@@ -2,7 +2,7 @@
 
 A Rancher chart based on the [prometheus-community/windows-exporter](https://github.com/prometheus-community/windows_exporter) project (previously called wmi-exporter) that sets up a DaemonSet of clients that can scrape windows-exporter metrics from Windows nodes on a Kubernetes cluster.
 
-A [Prometheus Operator](https://github.com/coreos/prometheus-operator) ServiceMonitor CR and PrometheusRule CR are also created by this chart to collect metrics and prefix the resulting series with `wmi_`.
+A [Prometheus Operator](https://github.com/coreos/prometheus-operator) ServiceMonitor CR and PrometheusRule CR are also created by this chart to collect metrics and add some recording rules to map `wmi_` series with their OS-agnostic counterparts.
 
 ## Node Requirements
 
@@ -22,12 +22,12 @@ The following tables list the configurable parameters of the rancher-windows-exp
 | Parameter | Description | Default |
 | ----- | --------------- | -- |
 | `serviceMonitor.enabled` | Deploys a [Prometheus Operator](https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#servicemonitor) ServiceMonitor CR that is configured to collect Windows metrics from the clients. Also deploys a Service that either automatically selects all the client pods or allows the user to supply a list of Endpoints to collect metrics from. Ignored if `clients.enabled` is false. | `true` |
-| `prometheusRule.enabled` | Deploys a [Prometheus Operator](https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#servicemonitor) PrometheusRule CR that relabels all collected Windows metrics series with `wmi_`. Ignored if `serviceMonitor.enabled` or `clients.enabled` are false. | `true` |
+| `prometheusRule.enabled` | Deploys a [Prometheus Operator](https://github.com/coreos/prometheus-operator/blob/master/Documentation/api.md#prometheusrule) PrometheusRule CR that relabels all collected Windows metrics series that start with `wmi_` to their OS-agnostic counterparts. Ignored if `serviceMonitor.enabled` or `clients.enabled` are false. | `true` |
 | `clients.enabled` | Deploys a DaemonSet of clients that are each capable of scraping Windows node metrics via [wins](https://github.com/rancher/wins) and [windows-exporter](https://github.com/prometheus-community/windows_exporter) | `true` |
 | `clients.port` |  The port where the client will publish Windows metrics | `9796` |
 | `clients.image.repository` | The repository for the Docker image that deploys [windows-exporter](https://github.com/prometheus-community/windows_exporter) and runs it through a [wins](https://github.com/rancher/wins) client configured to talk to the wins server on the host | `rancher/wmi_exporter-package` |
 | `clients.image.tag` | The tag for the Docker image that deploys [windows-exporter](https://github.com/prometheus-community/windows_exporter) and runs it through a [wins](https://github.com/rancher/wins) client configured to talk to the wins server on the host | `v0.0.4` |
-| `clients.endpoints` | A specific set of Endpoints that point to Pods that expose the metrics at `clients.port` | `[]` |
+| `clients.endpoints` | A specific set of Endpoints that point to Nodes that expose the metrics at `clients.port` | `[]` |
 | `clients.args` | Additional args to provide to the client image | `[]` |
 | `clients.env` | Additional environment variables to provide to the client image | `{}` |
 | `clients.enabledCollectors` | A comma-separated list of enabled [collectors](https://github.com/prometheus-community/windows_exporter#collectors) | `"net,os,service,system,cpu,cs,logical_disk,tcp,memory,container"` |

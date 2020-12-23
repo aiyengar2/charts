@@ -32,17 +32,13 @@ metadata:
   namespace: {{ template "windowsExporter.namespace" . }}
   labels: {{ include "windowsExporter.labels" . | nindent 4 }}
 spec:
+  type: ClusterIP
+  clusterIP: None
   ports:
   - name: windows-metrics
     port: {{ required "Need .Values.clients.port to figure out where to get metrics from" .Values.clients.port }}
     protocol: TCP
     targetPort: {{ .Values.clients.port }}
-{{- if .Values.clients.endpoints }}
-  type: ClusterIP
-  clusterIP: None
-{{- else }}
-  selector: {{ include "windowsExporter.labels" . | nindent 4 }}
-{{- end }}
 ---
 {{- if .Values.clients.endpoints }}
 apiVersion: v1
