@@ -1,8 +1,8 @@
 template: staging
 
 sync:
-- url: https://github.com/rancher/charts.git
-  branch: dev-v2.5-source-alt
+- url: https://github.com/aiyengar/charts.git
+  branch: test-drop-rc
 validate:
 - url: https://github.com/rancher/charts.git
   branch: main-alt
