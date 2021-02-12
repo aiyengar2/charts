@@ -1,0 +1,60 @@
+{{- if and .Values.serviceMonitor .Values.clients }}{{- if and .Values.serviceMonitor.enabled .Values.clients.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ template "windowsExporter.name" . }}
+  namespace: {{ template "windowsExporter.namespace" . }}
+  labels: {{ include "windowsExporter.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels: {{ include "windowsExporter.labels" . | nindent 6 }}
+  namespaceSelector:
+    matchNames:
+    - {{ template "windowsExporter.namespace" . }}
+  endpoints:
+  - port: windows-metrics
+    metricRelabelings:
+    - sourceLabels: [volume, nic]
+      regex: (.*);(.*)
+      separator: ''
+      targetLabel: device
+      action: replace
+      replacement: $1$2
+    - sourceLabels: [__name__]
+      regex: wmi_cs_logical_processors
+      replacement: 'system'
+      targetLabel: mode
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "windowsExporter.name" . }}
+  namespace: {{ template "windowsExporter.namespace" . }}
+  labels: {{ include "windowsExporter.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+  - name: windows-metrics
+    port: {{ required "Need .Values.clients.port to figure out where to get metrics from" .Values.clients.port }}
+    protocol: TCP
+    targetPort: {{ .Values.clients.port }}
+---
+{{- if .Values.clients.endpoints }}
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: {{ template "windowsExporter.name" . }}
+  namespace: {{ template "windowsExporter.namespace" . }}
+  labels: {{ include "windowsExporter.labels" . | nindent 4 }}
+subsets:
+- addresses:
+  {{- range .Values.endpoints }}
+  - ip: {{ . }}
+  {{- end }}
+  ports:
+  - name: windows-metrics
+    port: {{ required "Need .Values.clients.port to figure out where to get metrics from" .Values.clients.port }}
+    protocol: TCP
+{{- end }}
+{{- end }}{{- end }}
