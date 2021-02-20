@@ -22,7 +22,7 @@ prometheus-adapter:
     create: true
 
 ## RKE PushProx Monitoring
-## ref: https://github.com/rancher/charts/tree/master/packages/rancher-pushprox
+## ref: https://github.com/rancher/charts/tree/dev-v2.5-source/packages/rancher-pushprox
 ##
 rkeControllerManager:
   enabled: false
@@ -87,8 +87,14 @@ rkeEtcd:
     - effect: "NoSchedule"
       operator: "Exists"
 
+## RKE Windows Monitoring
+## ref: https://github.com/rancher/charts/dev-v2.5-source/master/packages/rancher-windows-exporter
+##
+rkeWindows:
+  enabled: false
+
 ## k3s PushProx Monitoring
-## ref: https://github.com/rancher/charts/tree/master/packages/rancher-pushprox
+## ref: https://github.com/rancher/charts/tree/dev-v2.5-source/packages/rancher-pushprox
 ##
 k3sServer:
   enabled: false
@@ -104,7 +110,7 @@ k3sServer:
       operator: "Exists"
 
 ## KubeADM PushProx Monitoring
-## ref: https://github.com/rancher/charts/tree/master/packages/rancher-pushprox
+## ref: https://github.com/rancher/charts/tree/dev-v2.5-source/packages/rancher-pushprox
 ##
 kubeAdmControllerManager:
   enabled: false
@@ -173,7 +179,7 @@ kubeAdmEtcd:
       operator: "Exists"
 
 ## rke2 PushProx Monitoring
-## ref: https://github.com/rancher/charts/tree/master/packages/rancher-pushprox
+## ref: https://github.com/rancher/charts/tree/dev-v2.5-source/packages/rancher-pushprox
 ##
 rke2ControllerManager:
   enabled: false

@@ -537,6 +537,23 @@ entries:
   rancher-pushprox:
   - annotations:
       catalog.cattle.io/hidden: "true"
+      catalog.cattle.io/os: linux
+      catalog.rancher.io/certified: rancher
+      catalog.rancher.io/namespace: cattle-monitoring-system
+      catalog.rancher.io/release-name: rancher-pushprox
+    apiVersion: v1
+    appVersion: 0.1.0
+    created: "2021-02-19T23:57:35.916487-08:00"
+    description: Sets up a deployment of the PushProx proxy and a DaemonSet of PushProx
+      clients.
+    digest: 0f3b504830dc1872029d9aa88187f9ea4d8ce26c068367aee01980421fb32c11
+    name: rancher-pushprox
+    type: application
+    urls:
+    - assets/rancher-pushprox/rancher-pushprox-0.1.300-rc00.tgz
+    version: 0.1.300-rc00
+  - annotations:
+      catalog.cattle.io/hidden: "true"
       catalog.rancher.io/certified: rancher
       catalog.rancher.io/namespace: cattle-monitoring-system
       catalog.rancher.io/release-name: rancher-pushprox
@@ -585,6 +602,25 @@ entries:
     urls:
     - assets/rancher-webhook/rancher-webhook-0.1.0-beta901-rc00.tgz
     version: 0.1.0-beta901-rc00
+  rancher-windows-exporter:
+  - annotations:
+      catalog.cattle.io/os: windows
+      catalog.rancher.io/certified: rancher
+      catalog.rancher.io/namespace: cattle-monitoring-system
+      catalog.rancher.io/release-name: rancher-windows-exporter
+    apiVersion: v1
+    appVersion: 0.0.4
+    created: "2021-02-19T23:57:36.49017-08:00"
+    description: Sets up monitoring metrics from Windows nodes via Prometheus windows-exporter
+    digest: 52333d84cd3af6374251b72694710ec0ff875b8dfe1a1d971f0b64b03cb296c9
+    maintainers:
+    - email: arvind.iyengar@rancher.com
+      name: aiyengar2
+    name: rancher-windows-exporter
+    type: application
+    urls:
+    - assets/rancher-windows-exporter/rancher-windows-exporter-0.1.000-rc00.tgz
+    version: 0.1.000-rc00
   rancher-wins-upgrader:
   - annotations:
       catalog.cattle.io/os: windows

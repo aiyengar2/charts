@@ -352,17 +352,17 @@ containers:
 {{- with .Values.extraContainers }}
 {{ tpl . $ | indent 2 }}
 {{- end }}
-{{- with .Values.nodeSelector }}
-nodeSelector:
-{{ toYaml . | indent 2 }}
+nodeSelector: {{ include "linux-node-selector" . | nindent 2 }}
+{{- if .Values.nodeSelector }}
+{{ toYaml .Values.nodeSelector | indent 2 }}
 {{- end }}
 {{- with .Values.affinity }}
 affinity:
 {{ toYaml . | indent 2 }}
 {{- end }}
-{{- with .Values.tolerations }}
-tolerations:
-{{ toYaml . | indent 2 }}
+tolerations: {{ include "linux-node-tolerations" . | nindent 2 }}
+{{- if .Values.tolerations }}
+{{ toYaml .Values.tolerations | indent 2 }}
 {{- end }}
 volumes:
   - name: config

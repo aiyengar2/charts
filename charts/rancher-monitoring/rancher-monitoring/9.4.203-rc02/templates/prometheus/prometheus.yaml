@@ -62,8 +62,8 @@ spec:
 {{- if .Values.prometheus.prometheusSpec.ignoreNamespaceSelectors }}
   ignoreNamespaceSelectors: {{ .Values.prometheus.prometheusSpec.ignoreNamespaceSelectors }}
 {{- end }}
+  nodeSelector: {{ include "linux-node-selector" . | nindent 4 }}
 {{- if .Values.prometheus.prometheusSpec.nodeSelector }}
-  nodeSelector:
 {{ toYaml .Values.prometheus.prometheusSpec.nodeSelector | indent 4 }}
 {{- end }}
   paused: {{ .Values.prometheus.prometheusSpec.paused }}
@@ -199,8 +199,8 @@ spec:
               prometheus: {{ template "kube-prometheus-stack.fullname" . }}-prometheus
 {{- end }}
 {{- end }}
+  tolerations: {{ include "linux-node-tolerations" . | nindent 4 }}
 {{- if .Values.prometheus.prometheusSpec.tolerations }}
-  tolerations:
 {{ toYaml .Values.prometheus.prometheusSpec.tolerations | indent 4 }}
 {{- end }}
 {{- if .Values.global.imagePullSecrets }}

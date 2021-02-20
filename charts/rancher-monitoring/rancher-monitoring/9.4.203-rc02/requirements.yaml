@@ -135,3 +135,11 @@ dependencies:
   enabled: false
   importvalues: []
   alias: ""
+- name: rkeWindows
+  version: ""
+  repository: file://./charts/rkeWindows
+  condition: rkeWindows.enabled
+  tags: []
+  enabled: false
+  importvalues: []
+  alias: ""
