@@ -1,0 +1,41 @@
+{{- if and .Values.global.rbac.create .Values.global.rbac.userRoles.create }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: monitoring-prometheus-view
+  namespace: {{ template "kube-prometheus-stack.namespace" . }}
+  labels: {{ include "kube-prometheus-stack.labels" . | nindent 4 }}
+  {{- if .Values.global.rbac.userRoles.aggregateToDefaultRoles }}
+    rbac.authorization.k8s.io/aggregate-to-view: "true"
+  {{- end }}
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - services/proxy
+  resourceNames:
+  - "http:{{ template "kube-prometheus-stack.fullname" . }}-prometheus:{{ .Values.prometheus.service.port }}"
+  - "https:{{ template "kube-prometheus-stack.fullname" . }}-prometheus:{{ .Values.prometheus.service.port }}"
+  verbs:
+  - 'get'
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: monitoring-alertmanager-view
+  namespace: {{ template "kube-prometheus-stack.namespace" . }}
+  labels: {{ include "kube-prometheus-stack.labels" . | nindent 4 }}
+  {{- if .Values.global.rbac.userRoles.aggregateToDefaultRoles }}
+    rbac.authorization.k8s.io/aggregate-to-view: "true"
+  {{- end }}
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - services/proxy
+  resourceNames:
+  - "http:{{ template "kube-prometheus-stack.fullname" . }}-alertmanager:{{ .Values.alertmanager.service.port }}"
+  - "https:{{ template "kube-prometheus-stack.fullname" . }}-alertmanager:{{ .Values.alertmanager.service.port }}"
+  verbs:
+  - 'get'
+{{- end }}
