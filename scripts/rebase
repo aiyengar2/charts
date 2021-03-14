@@ -1,0 +1,346 @@
+#!/bin/bash
+set -e
+
+cd $(dirname $0)
+
+cd ..
+
+# User options
+
+if [ -z ${PACKAGE} ]; then
+    echo "Usage: PACKAGE=<package-name> ./scripts/rebase"
+    exit 1
+fi
+
+SOURCE_REPO=https://github.com/prometheus-community/helm-charts.git
+SUB_DIRECTORY=charts/kube-prometheus-stack
+CURRENT_TAG=kube-prometheus-stack-9.4.2
+NEW_TAG=kube-prometheus-stack-9.4.3
+
+# Intermediary values
+
+REMOTE_NAME=charts-source-${RANDOM}
+STAGING_BRANCH=staging-${RANDOM}
+CHART_BRANCH=charts-${RANDOM}
+SUB_DIRECTORY_BRANCH=charts-subdir-${RANDOM}
+
+DEST_DIRECTORY=packages/${PACKAGE}/charts
+GC_DIRECTORY=packages/${PACKAGE}/generated-changes
+CRD_CHART_DIRECTORY=packages/${PACKAGE}/charts-crd # TODO: get from package.yaml
+CRDS_DIRECTORY=crd-manifest # TODO: get from package.yaml
+PACKAGE_YAML_PATH=packages/${PACKAGE}/package.yaml
+
+# Pre-rebase checks
+
+# Ensure Git is clean
+if [ -n "$(git status --porcelain)" ]; then
+    echo "Cannot run rebase on unclean repository:"
+    git status --porcelain
+    exit 1
+fi
+
+# Ensure the destination directory is currently non-existent
+if [ -d ${DEST_DIRECTORY} ]; then
+    echo "Destination directory ${DEST_DIRECTORY} already exists"
+    exit 1
+fi
+
+# Ensure remote doesn't already exist
+remotes=$(git remote)
+if echo ${remotes} | grep -q ${REMOTE_NAME}; then
+    echo "Remote ${REMOTE_NAME} already exists"
+    exit 1
+fi
+
+# Ensure branches doesn't already exist
+branches=$(git show-ref --heads | cut -d/ -f3-)
+if echo ${branches} | grep -q ${STAGING_BRANCH}; then
+    echo "Branch ${STAGING_BRANCH} already exists"
+    exit 1
+elif echo ${branches} | grep -q ${CHART_BRANCH}; then
+    echo "Branch ${CHART_BRANCH} already exists"
+    exit 1
+elif echo ${branches} | grep -q ${SUB_DIRECTORY_BRANCH}; then
+    echo "Branch ${SUB_DIRECTORY_BRANCH} already exists"
+    exit 1
+fi
+
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
+# Cleanup logic
+
+trap 'cleanup' EXIT
+
+cleanup() {
+    # Execute all cleanup even if there is failures
+    set +e
+    git remote rm ${REMOTE_NAME}
+    git clean -df
+    git reset --hard
+    git checkout ${CURRENT_BRANCH}
+    git branch -D ${CHART_BRANCH}
+    git branch -D ${STAGING_BRANCH}
+    git branch -D ${SUB_DIRECTORY_BRANCH}
+}
+
+# Start rebase
+git checkout -b ${STAGING_BRANCH}
+
+# Add provided remote to git
+git remote add -f ${REMOTE_NAME} ${SOURCE_REPO}
+
+if git merge-base --is-ancestor ${NEW_TAG} ${CURRENT_TAG}; then
+    echo "Tag ${NEW_TAG} does not contain ${CURRENT_TAG}"
+    exit 1
+fi
+
+# Checkout the provided tag from that remote into the staging branch
+git checkout tags/${CURRENT_TAG} -b ${CHART_BRANCH}
+
+# Fail if subdirectory specified does not exist on remote
+if [ ! -d ${SUB_DIRECTORY} ]; then
+    echo "Remote does not contain subdirectory ${SUB_DIRECTORY}"
+    exit 1
+fi
+
+# Create a subdirectory staging branch for the specific subdirectory you want to rebase to
+git subtree split -P ${SUB_DIRECTORY} -b ${SUB_DIRECTORY_BRANCH} --annotate='(split) ' --rejoin
+
+# Pull the subdirectory staging branch into the main staging branch
+git checkout ${STAGING_BRANCH}
+git subtree add -P ${DEST_DIRECTORY} ${SUB_DIRECTORY_BRANCH} --rejoin
+
+# Standardize source Helm chart by removing untracked files and subchart changes
+[ -d ${DEST_DIRECTORY}/charts ] && rm -rf ${DEST_DIRECTORY}/charts
+[ -f ${DEST_DIRECTORY}/.helmignore ] && cat ${DEST_DIRECTORY}/.helmignore \
+  | grep -v "#" \
+  | awk "{print \"${DEST_DIRECTORY}/\" \$0}" \
+  | xargs rm -rf
+# Remove CRD stuff
+[ -n ${HAS_CRD_CHART} ] \
+  && rm -rf ${DEST_DIRECTORY}/crds
+git add ${DEST_DIRECTORY}
+git commit -m "Remove subcharts, .helmignore, and crd chart stuff"
+
+# Modify package.yaml to point to current rebase tag
+yq w -i ${PACKAGE_YAML_PATH} url ${SOURCE_REPO}
+yq w -i ${PACKAGE_YAML_PATH} subdirectory ${SUB_DIRECTORY}
+yq w -i ${PACKAGE_YAML_PATH} commit $(git rev-list -n 1 ${CURRENT_TAG})
+git add ${PACKAGE_YAML_PATH}
+git commit -m "Modify package.yaml"
+
+# Temporarily move generated-changes/ out of the repository
+if [ -d ${GC_DIRECTORY} ]; then
+  mkdir -p generated-changes-original
+  [ -d ${GC_DIRECTORY}/exclude ] && mv ${GC_DIRECTORY}/exclude generated-changes-original/exclude
+  [ -d ${GC_DIRECTORY}/overlay ] && mv ${GC_DIRECTORY}/overlay generated-changes-original/overlay
+  [ -d ${GC_DIRECTORY}/patch ] && mv ${GC_DIRECTORY}/patch generated-changes-original/patch
+fi
+git add ${GC_DIRECTORY} generated-changes-original
+git commit -m "Move generated-changes directory outside package"
+
+PACKAGE=${PACKAGE} make prepare
+[ -d ${DEST_DIRECTORY}/charts ] \
+  && rm -rf ${DEST_DIRECTORY}/charts
+[ -f ${DEST_DIRECTORY}/.helmignore ] \
+  && cat ${DEST_DIRECTORY}/.helmignore \
+  | grep -v "#" \
+  | awk "{print \"${DEST_DIRECTORY}/\" \$0}" \
+  | xargs rm -rf
+# Ignore mode changes
+git diff -p \
+    | grep -E '^(diff|old mode|new mode)' \
+    | sed -e 's/^old/NEW/;s/^new/old/;s/^NEW/new/' \
+    | git apply
+# Remove CRD stuff
+[ -n ${HAS_CRD_CHART} ] \
+    && rm ${DEST_DIRECTORY}/templates/validate-install-crd.yaml \
+    && rm -rf ${CRD_CHART_DIRECTORY}
+# Add Chart.yaml and requirements.yaml as-is for base since they are managed files that will always need to be modifed
+git add ${DEST_DIRECTORY}/requirements.yaml ${DEST_DIRECTORY}/Chart.yaml
+git commit -m "Add regenerated Chart.yaml and requirements.yaml"
+
+# Ensure Git is clean
+if [ -n "$(git status --porcelain)" ]; then
+    echo "Contents of ${SOURCE_REPO} at ${CURRENT_TAG} do not match original upstream"
+    git status --porcelain
+    exit 1
+fi
+
+# Drop unnecessary commits
+git reset --soft HEAD~1 && git stash # save the Chart.yaml and requirement.yaml change
+git reset --hard HEAD~2 # drop the package.yaml and generated-changes change
+git stash pop && git add ${DEST_DIRECTORY}/requirements.yaml ${DEST_DIRECTORY}/Chart.yaml
+git commit -m "Add regenerated Chart.yaml and requirements.yaml"
+
+echo ""
+echo "Confirmed that ${CURRENT_TAG} is the base for ${PACKAGE}."
+echo "Moving forward with rebase..."
+echo ""
+
+PACKAGE=${PACKAGE} make prepare
+git add ${DEST_DIRECTORY} ${CRD_CHART_DIRECTORY}
+git reset --soft HEAD~1
+git commit --amend -m "Add changes saved in generated-changes"
+
+echo ""
+
+# Keep track of commits that need to be dropped entirely
+GC_COMMIT=$(git rev-parse --short HEAD)
+SUBTREE_COMMIT=$(git rev-parse --short HEAD~1)
+
+# Process each commit
+COMMITS=$(git log --oneline ${CURRENT_TAG}..${NEW_TAG} -- ${SUB_DIRECTORY} | cut -d' ' -f1 | tail -r)
+NUM_COMMITS=$(git log --oneline ${CURRENT_TAG}..${NEW_TAG} -- ${SUB_DIRECTORY} | cut -d' ' -f1 | tail -r | wc -l)
+i=0
+for commit in ${COMMITS}; do
+    if [ -f .abort_rebase ]; then
+        rm .abort_rebase
+        echo "Detected ABORT_REBASE has been set. Exiting..."
+        echo ""
+        exit 1
+    fi
+    ((i=i+1))
+
+    if [ -d ${CRD_CHART_DIRECTORY} ]; then
+        # Move CRDs back into main chart so that you can rebase changes to CRDs as well
+        mv ${CRD_CHART_DIRECTORY}/${CRDS_DIRECTORY} ${DEST_DIRECTORY}/crds
+        git add ${CRD_CHART_DIRECTORY}/${CRDS_DIRECTORY} ${DEST_DIRECTORY}/crds
+        git commit -m "Move CRDs back into main chart"
+    fi
+
+    # Update charts branch and subdirectory branch with current commit
+    git checkout ${CHART_BRANCH}
+    git cherry-pick -x ${commit}
+    git subtree split -P ${SUB_DIRECTORY} -b ${SUB_DIRECTORY_BRANCH} --annotate='(split) ' --rejoin
+    
+    # Pull in changes from subdirectory branch
+    git checkout ${STAGING_BRANCH}
+    set +e
+    git subtree pull -P ${DEST_DIRECTORY} . ${SUB_DIRECTORY_BRANCH} --rejoin
+    if [ $? -ne 0 ]; then
+        # If the automatic merge has conflicts, reset the staged contents
+        git reset HEAD
+    else
+        # Even if the automatic merge is successful, ensure the commits are put back in staging for developer review
+        git reset HEAD~1
+    fi
+    set -e
+    if [ -d ${CRD_CHART_DIRECTORY} ]; then
+        # Move CRDs back back into CRD chart since changes would have been tracked there
+        git reset HEAD~1
+        mv ${DEST_DIRECTORY}/crds ${CRD_CHART_DIRECTORY}/${CRDS_DIRECTORY}
+    fi
+
+    echo ""
+    echo "Performing rebase on commit ${i}/$(echo ${NUM_COMMITS}):"
+    git log ${commit} --oneline --no-walk
+    echo ""
+    echo "The contents of this commit have been loaded into your working directory."
+    echo ""
+    echo "Please look through each file that was changed and remove any Git conflicts using an editor of your choice."
+    echo ""
+    echo "Once you have resolved conflicts or added any additonal necessary changes, do the following:"
+    echo "1) Add all changes to ${DEST_DIRECTORY} or ${CRD_CHART_DIRECTORY} to staging (e.g. git add)"
+    echo "2) Commit all other changes to save them (e.g. 'git add <changes>; git commit -m \"message\"')"
+    echo "Note: Any additional commits you make will show up in your branch at the end of the rebase, so committing changes from 'make patch' could be helpful"
+    echo ""
+    echo "Once you have added all changes to ${DEST_DIRECTORY} or ${CRD_CHART_DIRECTORY}, exit out of the shell to move to the next commit."
+    echo ""
+    echo "To force abort the rebase and discard your changes at any time, run 'touch .abort_rebase; exit'"
+    set +e
+    bash --rcfile <(echo "PS1='(interactive-rebase-shell) '") -i
+    set -e
+
+    # Ensure additional commits do not contain changes to DEST_DIRECTORY or CRD_CHART_DIRECTORY
+    BAD_COMMITS=$(git log --oneline ${GC_COMMIT}..HEAD -- ${DEST_DIRECTORY} ${CRD_CHART_DIRECTORY})
+    # Ensure that changes are only added or modified to DEST_DIRECTORY or CRD_CHART_DIRECTORY
+    BAD_CHANGES=$(
+        git status --porcelain \
+          | grep -v "A  ${DEST_DIRECTORY}" \
+          | grep -v "M  ${DEST_DIRECTORY}" \
+          | grep -v "A  ${CRD_CHART_DIRECTORY}" \
+          | grep -v "M  ${CRD_CHART_DIRECTORY}" \
+          | tee
+    )
+    # Loop back through shell until the developer resolves all conflicts
+    while [ -n "${BAD_COMMITS}" ] || [ -n "${BAD_CHANGES}" ]; do
+        echo ""
+        if [ -f .abort_rebase ]; then
+            rm .abort_rebase
+            echo "Detected ABORT_REBASE has been set. Exiting..."
+            echo ""
+            exit 1
+        fi
+        if [ -n "${BAD_COMMITS}" ]; then
+            echo "ERROR: Detected the following commits that violate rebase guidelines:"
+            echo "${BAD_COMMITS}"
+            echo ""
+        fi
+        if [ -n "${BAD_CHANGES}" ]; then
+            echo "ERROR: Detected the following changes that violate rebase guidelines:"
+            echo "${BAD_CHANGES}"
+            echo ""
+        fi
+        echo "Only changes to ${DEST_DIRECTORY} and ${CRD_CHART_DIRECTORY} should be in staging. All other changes should be committed."
+        echo ""
+        echo "Please modify the commits and try again."
+        echo ""
+        echo "To force abort the rebase and discard your changes at any time, run 'touch .abort_rebase; exit'"
+        set +e
+        bash --rcfile <(echo "PS1='(interactive-rebase-shell) '") -i
+        set -e
+        BAD_COMMITS=$(git log --oneline ${GC_COMMIT}..HEAD -- ${DEST_DIRECTORY} ${CRD_CHART_DIRECTORY})
+        BAD_CHANGES=$(
+            git status --porcelain \
+            | grep -v "A  ${DEST_DIRECTORY}" \
+            | grep -v "M  ${DEST_DIRECTORY}" \
+            | grep -v "A  ${CRD_CHART_DIRECTORY}" \
+            | grep -v "M  ${CRD_CHART_DIRECTORY}" \
+            | tee
+        )
+    done
+
+    # Merge current staged changes into the GC_COMMIT directly, ignoring any other commits added by the user
+    # Then set the GC_COMMIT once more since the commit hash has changed
+    NUM_USER_COMMITS=$(git rev-list --count ${GC_COMMIT}..HEAD)
+    git commit --fixup "${GC_COMMIT}" && GIT_SEQUENCE_EDITOR=true git rebase --interactive --autosquash "${GC_COMMIT}^"
+    GC_COMMIT=$(git rev-parse --short HEAD~${NUM_USER_COMMITS})
+done
+
+# Run make patch and save all changes that were added to the working directory throughout the rebase
+PACKAGE=${PACKAGE} make patch
+git add ${GC_DIRECTORY}
+git commit --allow-empty -m "Rebase from ${CURRENT_TAG} to ${NEW_TAG}"
+
+# Ensure Git is clean
+if [ -n "$(git status --porcelain)" ]; then
+    echo "Cannot run rebase on unclean repository:"
+    git status --porcelain
+    exit 1
+fi
+
+# Cherry pick all changes to the current branch
+COMMITS=$(git log --oneline ${GC_COMMIT}..HEAD | cut -d' ' -f1 | tail -r)
+echo ""
+echo "Applying the following commits to your current branch"
+echo "$(git log ${GC_COMMIT}..HEAD)"
+
+git checkout ${CURRENT_BRANCH}
+for commit in ${COMMITS}; do
+    git cherry-pick ${commit}
+done
+
+echo ""
+echo "Hooray! ${GC_DIRECTORY} has now been updated, along with any other commits made during the rebase."
+echo ""
+echo "NOTE:"
+echo "Your package.yaml still points at the old base, although you have absorbed all upstream changes."
+echo ""
+echo "When you are ready to switch the base of the chart, do the following steps:"
+echo "1) Run 'make prepare' to prepare your working directory with the committed changes"
+echo "2) Modify the package.yaml manually to point at your new upstream (e.g. chart archive or git commit)"
+echo "3) Run 'make patch' on the working directory that is already prepared"
+echo ""
+echo "Once complete, you can make one more commit that modifies the generated-changes/ directory based on your new base."
+echo ""
