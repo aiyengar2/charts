@@ -14,8 +14,10 @@ fi
 
 SOURCE_REPO=https://github.com/prometheus-community/helm-charts.git
 SUB_DIRECTORY=charts/kube-prometheus-stack
-CURRENT_TAG=kube-prometheus-stack-9.4.2
-NEW_TAG=kube-prometheus-stack-9.4.3
+# CURRENT_TAG=kube-prometheus-stack-9.4.2
+# NEW_TAG=kube-prometheus-stack-9.4.4
+CURRENT_TAG=kube-prometheus-stack-14.0.0
+NEW_TAG=kube-prometheus-stack-14.0.1
 
 # Intermediary values
 
@@ -32,20 +34,22 @@ PACKAGE_YAML_PATH=packages/${PACKAGE}/package.yaml
 
 # Pre-rebase checks
 
-# Ensure Git is clean
+echo "Running pre-flight checks..."
+
+echo "> Checking if Git is clean..."
 if [ -n "$(git status --porcelain)" ]; then
     echo "Cannot run rebase on unclean repository:"
     git status --porcelain
     exit 1
 fi
 
-# Ensure the destination directory is currently non-existent
+echo "> Checking if ${DEST_DIRECTORY} exists..."
 if [ -d ${DEST_DIRECTORY} ]; then
     echo "Destination directory ${DEST_DIRECTORY} already exists"
     exit 1
 fi
 
-# Ensure remote doesn't already exist
+echo "> Checking if ${REMOTE_NAME} exists..."
 remotes=$(git remote)
 if echo ${remotes} | grep -q ${REMOTE_NAME}; then
     echo "Remote ${REMOTE_NAME} already exists"
@@ -53,6 +57,7 @@ if echo ${remotes} | grep -q ${REMOTE_NAME}; then
 fi
 
 # Ensure branches doesn't already exist
+echo "> Checking if sandbox branches (${STAGING_BRANCH}, ${CHART_BRANCH}, ${SUB_DIRECTORY_BRANCH}) exist..."
 branches=$(git show-ref --heads | cut -d/ -f3-)
 if echo ${branches} | grep -q ${STAGING_BRANCH}; then
     echo "Branch ${STAGING_BRANCH} already exists"
@@ -73,61 +78,80 @@ trap 'cleanup' EXIT
 
 cleanup() {
     # Execute all cleanup even if there is failures
+    echo ""
+    echo "Cleaning up Git remotes and branches created by this script..."
     set +e
-    git remote rm ${REMOTE_NAME}
-    git clean -df
-    git reset --hard
-    git checkout ${CURRENT_BRANCH}
-    git branch -D ${CHART_BRANCH}
-    git branch -D ${STAGING_BRANCH}
-    git branch -D ${SUB_DIRECTORY_BRANCH}
+    git remote rm ${REMOTE_NAME} 2>/dev/null
+    git clean -df 1>/dev/null 2>/dev/null
+    git reset --hard 1>/dev/null 2>/dev/null
+    git checkout ${CURRENT_BRANCH} 2>/dev/null
+    git branch -D ${CHART_BRANCH} 2>/dev/null
+    git branch -D ${STAGING_BRANCH} 2>/dev/null
+    git branch -D ${SUB_DIRECTORY_BRANCH} 2>/dev/null
 }
 
+echo ""
+echo "Preparing Git for rebase..."
+
 # Start rebase
-git checkout -b ${STAGING_BRANCH}
+echo "> Checking out a new branch at ${STAGING_BRANCH} to sandbox changes..."
+git checkout -b ${STAGING_BRANCH} 1>/dev/null 2>/dev/null
 
 # Add provided remote to git
-git remote add -f ${REMOTE_NAME} ${SOURCE_REPO}
+echo "> Adding ${SOURCE_REPO} as a remote on Git"
+git remote add -f ${REMOTE_NAME} ${SOURCE_REPO} 1>/dev/null 2>/dev/null
 
-if git merge-base --is-ancestor ${NEW_TAG} ${CURRENT_TAG}; then
+echo "> Checking if ${NEW_TAG} contains ${CURRENT_TAG}..."
+if git merge-base --is-ancestor ${NEW_TAG} ${CURRENT_TAG} 1>/dev/null 2>/dev/null; then
     echo "Tag ${NEW_TAG} does not contain ${CURRENT_TAG}"
     exit 1
 fi
 
 # Checkout the provided tag from that remote into the staging branch
-git checkout tags/${CURRENT_TAG} -b ${CHART_BRANCH}
+echo "> Checking out a new branch at ${CHART_BRANCH} tracking ${SOURCE_REPO} at ${CURRENT_TAG}..."
+git checkout tags/${CURRENT_TAG} -b ${CHART_BRANCH} 1>/dev/null 2>/dev/null
 
 # Fail if subdirectory specified does not exist on remote
+echo "> Checking if ${SOURCE_REPO} at ${CURRENT_TAG} has ${SUB_DIRECTORY}..."
 if [ ! -d ${SUB_DIRECTORY} ]; then
-    echo "Remote does not contain subdirectory ${SUB_DIRECTORY}"
+    echo "${SOURCE_REPO} does not contain subdirectory ${SUB_DIRECTORY}"
     exit 1
 fi
 
 # Create a subdirectory staging branch for the specific subdirectory you want to rebase to
-git subtree split -P ${SUB_DIRECTORY} -b ${SUB_DIRECTORY_BRANCH} --annotate='(split) ' --rejoin
+echo "> Checking out a new branch at ${SUB_DIRECTORY_BRANCH} tracking only ${SUB_DIRECTORY} within ${SOURCE_REPO} at ${CURRENT_TAG}..."
+git subtree split -P ${SUB_DIRECTORY} -b ${SUB_DIRECTORY_BRANCH} --annotate='(split) ' --rejoin 1>/dev/null 2>/dev/null
 
 # Pull the subdirectory staging branch into the main staging branch
-git checkout ${STAGING_BRANCH}
-git subtree add -P ${DEST_DIRECTORY} ${SUB_DIRECTORY_BRANCH} --rejoin
+echo "> Pulling in contents of ${SUB_DIRECTORY_BRANCH} as subtree in ${STAGING_BRANCH} rooted at ${DEST_DIRECTORY}..."
+git checkout ${STAGING_BRANCH} 1>/dev/null 2>/dev/null
+git subtree add -P ${DEST_DIRECTORY} ${SUB_DIRECTORY_BRANCH} --rejoin 1>/dev/null 2>/dev/null
+
+echo ""
+echo "Validating whether ${CURRENT_TAG} can be used as the base for ${PACKAGE}..."
 
 # Standardize source Helm chart by removing untracked files and subchart changes
-[ -d ${DEST_DIRECTORY}/charts ] && rm -rf ${DEST_DIRECTORY}/charts
-[ -f ${DEST_DIRECTORY}/.helmignore ] && cat ${DEST_DIRECTORY}/.helmignore \
-  | grep -v "#" \
-  | awk "{print \"${DEST_DIRECTORY}/\" \$0}" \
-  | xargs rm -rf
-# Remove CRD stuff
-[ -n ${HAS_CRD_CHART} ] \
-  && rm -rf ${DEST_DIRECTORY}/crds
+if [ -d ${DEST_DIRECTORY}/charts ]; then
+    rm -rf ${DEST_DIRECTORY}/charts
+fi
+if [ -n ${HAS_CRD_CHART} ]; then
+    rm -rf ${DEST_DIRECTORY}/crds
+fi
+if [ -f ${DEST_DIRECTORY}/.helmignore ]; then
+    cat ${DEST_DIRECTORY}/.helmignore \
+    | grep -v "#" \
+    | awk "{print \"${DEST_DIRECTORY}/\" \$0}" \
+    | xargs rm -rf
+fi
 git add ${DEST_DIRECTORY}
-git commit -m "Remove subcharts, .helmignore, and crd chart stuff"
+git commit -m "Remove subcharts, crds, and helmignore" 1>/dev/null 2>/dev/null
 
 # Modify package.yaml to point to current rebase tag
 yq w -i ${PACKAGE_YAML_PATH} url ${SOURCE_REPO}
 yq w -i ${PACKAGE_YAML_PATH} subdirectory ${SUB_DIRECTORY}
 yq w -i ${PACKAGE_YAML_PATH} commit $(git rev-list -n 1 ${CURRENT_TAG})
 git add ${PACKAGE_YAML_PATH}
-git commit -m "Modify package.yaml"
+git commit -m "Modify package.yaml" 1>/dev/null 2>/dev/null
 
 # Temporarily move generated-changes/ out of the repository
 if [ -d ${GC_DIRECTORY} ]; then
@@ -137,28 +161,33 @@ if [ -d ${GC_DIRECTORY} ]; then
   [ -d ${GC_DIRECTORY}/patch ] && mv ${GC_DIRECTORY}/patch generated-changes-original/patch
 fi
 git add ${GC_DIRECTORY} generated-changes-original
-git commit -m "Move generated-changes directory outside package"
+git commit -m "Move generated-changes directory outside package" 1>/dev/null 2>/dev/null
 
+# Standardize current Helm chart by removing script-imposed differences
 PACKAGE=${PACKAGE} make prepare
-[ -d ${DEST_DIRECTORY}/charts ] \
-  && rm -rf ${DEST_DIRECTORY}/charts
-[ -f ${DEST_DIRECTORY}/.helmignore ] \
-  && cat ${DEST_DIRECTORY}/.helmignore \
-  | grep -v "#" \
-  | awk "{print \"${DEST_DIRECTORY}/\" \$0}" \
-  | xargs rm -rf
+if [ -d ${DEST_DIRECTORY}/charts ]; then
+    rm -rf ${DEST_DIRECTORY}/charts
+fi
+if [ -n ${HAS_CRD_CHART} ]; then
+    rm ${DEST_DIRECTORY}/templates/validate-install-crd.yaml
+    rm -rf ${CRD_CHART_DIRECTORY}
+fi
+if [ -f ${DEST_DIRECTORY}/.helmignore ]; then
+    cat ${DEST_DIRECTORY}/.helmignore \
+    | grep -v "#" \
+    | awk "{print \"${DEST_DIRECTORY}/\" \$0}" \
+    | xargs rm -rf
+fi
 # Ignore mode changes
 git diff -p \
     | grep -E '^(diff|old mode|new mode)' \
     | sed -e 's/^old/NEW/;s/^new/old/;s/^NEW/new/' \
     | git apply
-# Remove CRD stuff
-[ -n ${HAS_CRD_CHART} ] \
-    && rm ${DEST_DIRECTORY}/templates/validate-install-crd.yaml \
-    && rm -rf ${CRD_CHART_DIRECTORY}
 # Add Chart.yaml and requirements.yaml as-is for base since they are managed files that will always need to be modifed
 git add ${DEST_DIRECTORY}/requirements.yaml ${DEST_DIRECTORY}/Chart.yaml
 git commit -m "Add regenerated Chart.yaml and requirements.yaml"
+
+bash --rcfile <(echo "PS1='(interactive-rebase-shell) '") -i
 
 # Ensure Git is clean
 if [ -n "$(git status --porcelain)" ]; then
@@ -197,7 +226,6 @@ for commit in ${COMMITS}; do
     if [ -f .abort_rebase ]; then
         rm .abort_rebase
         echo "Detected ABORT_REBASE has been set. Exiting..."
-        echo ""
         exit 1
     fi
     ((i=i+1))
@@ -269,7 +297,6 @@ for commit in ${COMMITS}; do
         if [ -f .abort_rebase ]; then
             rm .abort_rebase
             echo "Detected ABORT_REBASE has been set. Exiting..."
-            echo ""
             exit 1
         fi
         if [ -n "${BAD_COMMITS}" ]; then
