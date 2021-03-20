@@ -1,0 +1,77 @@
+--- charts-original/templates/prometheus/rules-1.14/node-exporter.rules.yaml
++++ charts/templates/prometheus/rules-1.14/node-exporter.rules.yaml
+@@ -4,7 +4,7 @@
+ https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack/hack
+ */ -}}
+ {{- $kubeTargetVersion := default .Capabilities.KubeVersion.GitVersion .Values.kubeTargetVersionOverride }}
+-{{- if and (semverCompare ">=1.14.0-0" $kubeTargetVersion) (semverCompare "<9.9.9-9" $kubeTargetVersion) .Values.defaultRules.create .Values.nodeExporter.enabled .Values.defaultRules.rules.node }}
++{{- if and (semverCompare ">=1.14.0-0" $kubeTargetVersion) (semverCompare "<9.9.9-9" $kubeTargetVersion) .Values.defaultRules.create (or .Values.nodeExporter.enabled .Values.windowsExporter.enabled) .Values.defaultRules.rules.node }}
+ apiVersion: monitoring.coreos.com/v1
+ kind: PrometheusRule
+ metadata:
+@@ -27,53 +27,53 @@
+     - expr: |-
+         count without (cpu) (
+           count without (mode) (
+-            node_cpu_seconds_total{job="node-exporter"}
++            node_cpu_seconds_total{job=~"node-exporter|windows-exporter"}
+           )
+         )
+       record: instance:node_num_cpu:sum
+     - expr: |-
+         1 - avg without (cpu, mode) (
+-          rate(node_cpu_seconds_total{job="node-exporter", mode="idle"}[1m])
++          rate(node_cpu_seconds_total{job=~"node-exporter|windows-exporter", mode="idle"}[1m])
+         )
+       record: instance:node_cpu_utilisation:rate1m
+     - expr: |-
+         (
+-          node_load1{job="node-exporter"}
++          node_load1{job=~"node-exporter|windows-exporter"}
+         /
+-          instance:node_num_cpu:sum{job="node-exporter"}
++          instance:node_num_cpu:sum{job=~"node-exporter|windows-exporter"}
+         )
+       record: instance:node_load1_per_cpu:ratio
+     - expr: |-
+         1 - (
+-          node_memory_MemAvailable_bytes{job="node-exporter"}
++          node_memory_MemAvailable_bytes{job=~"node-exporter|windows-exporter"}
+         /
+-          node_memory_MemTotal_bytes{job="node-exporter"}
++          node_memory_MemTotal_bytes{job=~"node-exporter|windows-exporter"}
+         )
+       record: instance:node_memory_utilisation:ratio
+     - expr: rate(node_vmstat_pgmajfault{job="node-exporter"}[1m])
+       record: instance:node_vmstat_pgmajfault:rate1m
+-    - expr: rate(node_disk_io_time_seconds_total{job="node-exporter", device=~"nvme.+|rbd.+|sd.+|vd.+|xvd.+|dm-.+|dasd.+"}[1m])
++    - expr: rate(node_disk_io_time_seconds_total{job=~"node-exporter|windows-exporter", device=~"nvme.+|rbd.+|sd.+|vd.+|xvd.+|dm-.+|dasd.+"}[1m])
+       record: instance_device:node_disk_io_time_seconds:rate1m
+     - expr: rate(node_disk_io_time_weighted_seconds_total{job="node-exporter", device=~"nvme.+|rbd.+|sd.+|vd.+|xvd.+|dm-.+|dasd.+"}[1m])
+       record: instance_device:node_disk_io_time_weighted_seconds:rate1m
+     - expr: |-
+         sum without (device) (
+-          rate(node_network_receive_bytes_total{job="node-exporter", device!="lo"}[1m])
++          rate(node_network_receive_bytes_total{job=~"node-exporter|windows-exporter", device!="lo"}[1m])
+         )
+       record: instance:node_network_receive_bytes_excluding_lo:rate1m
+     - expr: |-
+         sum without (device) (
+-          rate(node_network_transmit_bytes_total{job="node-exporter", device!="lo"}[1m])
++          rate(node_network_transmit_bytes_total{job=~"node-exporter|windows-exporter", device!="lo"}[1m])
+         )
+       record: instance:node_network_transmit_bytes_excluding_lo:rate1m
+     - expr: |-
+         sum without (device) (
+-          rate(node_network_receive_drop_total{job="node-exporter", device!="lo"}[1m])
++          rate(node_network_receive_drop_total{job=~"node-exporter|windows-exporter", device!="lo"}[1m])
+         )
+       record: instance:node_network_receive_drop_excluding_lo:rate1m
+     - expr: |-
+         sum without (device) (
+-          rate(node_network_transmit_drop_total{job="node-exporter", device!="lo"}[1m])
++          rate(node_network_transmit_drop_total{job=~"node-exporter|windows-exporter", device!="lo"}[1m])
+         )
+       record: instance:node_network_transmit_drop_excluding_lo:rate1m
+ {{- end }}
+\ No newline at end of file
