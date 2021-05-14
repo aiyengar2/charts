@@ -45,7 +45,18 @@ spec:
           - /bin/sh
           - -c
           - >
-            kubectl apply -f /etc/config/crd-manifest.yaml
+            kubectl apply -f /etc/config/crd-manifest.yaml;
+            echo "Waiting for CRDs to be recognized before finishing installation...";
+            
+            {{- range $path, $_ :=  (.Files.Glob  "crd-manifest/**.yaml") }}
+            {{- $apiGroup := get (get ($.Files.Get $path | fromYaml) "spec") "group" }}
+            rm -rf $HOME/.kube/cache/discovery/*/{{ $apiGroup }}
+            {{- end }}
+
+            {{- range $path, $_ :=  (.Files.Glob  "crd-manifest/**.yaml") }}
+            {{- $crd := get (get ($.Files.Get $path | fromYaml) "metadata") "name" }}
+            kubectl get crd {{ $crd }}
+            {{- end }}
           volumeMounts:
             - name: crd-manifest
               readOnly: true
